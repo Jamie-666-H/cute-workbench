@@ -370,6 +370,15 @@
   .nav-item{touch-action:pan-y;-webkit-touch-callout:none}
   .sort-hidden{visibility:hidden !important}
   .sort-ghost{position:fixed;z-index:9999;pointer-events:none;margin:0 !important;box-shadow:0 10px 28px rgba(232,65,111,.35);transform:scale(1.04);opacity:.97}
+  /* 随机好玩：小红书一键逛 */
+  .fun-box{background:rgba(255,255,255,.7);border:2px dashed var(--pink);border-radius:var(--radius);padding:14px 16px;margin-top:14px}
+  .fun-head{font-size:15px;font-weight:800;color:var(--pink-deep);margin-bottom:10px}
+  .fun-sub{font-size:11px;color:var(--text-soft);font-weight:600;margin-left:6px}
+  .fun-tags{display:flex;flex-wrap:wrap;gap:8px}
+  .fun-tag{display:inline-block;background:var(--pink-soft);color:var(--pink-deep);font-size:13px;font-weight:700;padding:7px 14px;border-radius:20px;text-decoration:none}
+  .fun-tag:active{transform:scale(.95);background:var(--pink);color:#fff}
+  .fun-shuffle{margin-top:10px;border:2px solid var(--line);background:#fff;color:var(--pink-deep);font-size:13px;font-weight:700;padding:6px 16px;border-radius:20px;cursor:pointer}
+  .fun-shuffle:active{background:var(--pink-soft)}
 </style>
 <meta name="theme-color" content="#ff6fa5">
 <!-- iOS：不声明 apple-mobile-web-app-capable → 主页图标在 Safari 中打开，避开独立 WebApp 底部手势冲突 -->
@@ -794,17 +803,7 @@ function newsItemCard(n){
   const hot = n.hot ? `<span class="news-hot">🔥${esc(String(n.hot))}</span>` : '';
   const copy = `<button class="news-copy" data-url="${esc(n.url)}" title="复制链接"
     onclick="event.preventDefault();event.stopPropagation();copyNewsUrl(this)">⧉</button>`;
-  const scheme = platScheme(n.src, n.title);
-  if(scheme){
-    return `<a class="news-item" href="${esc(n.url)}" data-scheme="${esc(scheme)}" data-web="${esc(n.url)}"
-      onclick="event.preventDefault();openAppOrWeb(this)" target="_blank" rel="noopener">
-      <span class="news-src ${srcClass(n.src)}">${esc(n.src)}</span>
-      <span class="news-title">${esc(n.title)}</span>
-      ${hot}
-      ${copy}
-      <span class="news-go">↗</span>
-    </a>`;
-  }
+  // 直接用官方通用链接(n.url)；手机浏览器/已装 App 点击会直接唤起对应 App，不再走失效的私有 scheme
   return `<a class="news-item" href="${esc(n.url)}" target="_blank" rel="noopener">
     <span class="news-src ${srcClass(n.src)}">${esc(n.src)}</span>
     <span class="news-title">${esc(n.title)}</span>
@@ -1238,6 +1237,13 @@ function renderTodo(){
 }
 
 /* --- 7. 新闻热点 --- */
+const FUN_KW=['搞笑日常','人类迷惑行为','治愈系萌宠','今天吃什么','减脂餐食谱','旅行拍照姿势','周末去哪儿','手工DIY','家居好物','穿搭灵感','宿舍改造','打工人的快乐','解压小妙招','无用但好玩','氛围感拍照','猫咪行为大赏','减肥人的嘴','一人食','生活小妙招','沉浸式回家'];
+function xhsSearchUrl(kw){ return 'https://www.xiaohongshu.com/search_result?keyword='+encodeURIComponent(kw); }
+function renderFunTags(){
+  const pick=[...FUN_KW].sort(()=>Math.random()-0.5).slice(0,8);
+  return pick.map(k=>`<a class="fun-tag" href="${xhsSearchUrl(k)}" target="_blank" rel="noopener">${esc(k)}</a>`).join('');
+}
+function funShuffle(){ const el=document.getElementById('funTags'); if(el) el.innerHTML=renderFunTags(); }
 function renderNews(){
   let h=`<div class="mod-head"><h2>📰 新闻热点</h2>
     <div class="stats"><span id="newsStatus" class="pill">权威媒体</span>
@@ -1245,6 +1251,11 @@ function renderNews(){
     <div class="news-layout">
       <div class="news-side">${renderNewsChips()}</div>
       <div class="news-main" id="newsList">${renderNewsList()}</div>
+    </div>
+    <div class="fun-box">
+      <div class="fun-head">🎲 随便逛逛小红书 <span class="fun-sub">点一下直接跳 App 找乐子</span></div>
+      <div class="fun-tags" id="funTags">${renderFunTags()}</div>
+      <button class="fun-shuffle" onclick="funShuffle()">🔄 换一批</button>
     </div>
     <p class="news-foot">抖音 / 小红书：点一下直接唤起对应 App 打开（没装 App 则自动打开网页）；若未自动跳转，点卡片右侧 ⧉ 复制链接，粘贴到 App 搜索框即可 · 其它平台点开即看原文 · 新闻由常驻后端每 60 秒实时抓取央视/人民网/新华网/微博热搜/百度热点/抖音热点/小红书实时热榜共 7 大平台，App 每 60 秒自动拉取；后端休眠时自动回退到每小时快照</p>`;
   setTimeout(()=>{ startNewsAuto(); fetchNews(false); },300);
