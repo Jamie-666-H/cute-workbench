@@ -423,6 +423,9 @@
 const $ = s => document.querySelector(s);
 const KEY = 'cute-workbench-v1';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+/* 云端同步配置（与新闻后端同一服务） */
+const BACKEND = 'https://cute-news-backend.onrender.com';
+const SYNC_KEY = 'cute-workbench-sync-v1';
 function todayStr(d=new Date()){
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
@@ -481,11 +484,93 @@ function load(){
     for(const k in base){ if(!(k in d)) d[k]=base[k]; }
     if(!d.settings) d.settings=base.settings;
     if(!d.settings.daily) d.settings.daily=base.settings.daily;
+    if(!d.updated) d.updated=0;
     return d;
   }catch(e){ return defaults(); }
 }
 let DB = load();
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){ toast('存储空间不足啦，删掉一些旧记录再拍～'); } }
+function save(){ DB.updated=Date.now(); try{ localStorage.setItem(KEY, JSON.stringify(DB)); }catch(e){ toast('存储空间不足啦，删掉一些旧记录再拍～'); } schedulePush(); }
+
+/* ===================== 云端同步 ===================== */
+let _pushTimer=null, _suppressPush=false;
+function schedulePush(){ if(_suppressPush) return; clearTimeout(_pushTimer); _pushTimer=setTimeout(pushSync,1200); }
+function mergeValue(lv, rv){
+  if(rv && typeof rv==='object' && !Array.isArray(rv) && lv && typeof lv==='object' && !Array.isArray(lv)){
+    const out=Object.assign({}, lv);
+    for(const k of Object.keys(rv)){
+      if(k==='updated') continue;
+      out[k]=mergeValue(out[k], rv[k]);
+    }
+    return out;
+  }
+  if(Array.isArray(rv)&&Array.isArray(lv)){
+    const m=new Map();
+    const key=x=>(x&&x.id!==undefined)?String(x.id):JSON.stringify(x);
+    lv.forEach(x=>m.set(key(x),x));
+    rv.forEach(x=>m.set(key(x),x));
+    return [...m.values()];
+  }
+  return rv===undefined?lv:rv;
+}
+function mergeDB(local, remote){
+  const out=mergeValue(local, remote);
+  out.updated=Math.max(Number(local&&local.updated)||0, Number(remote&&remote.updated)||0);
+  return out;
+}
+async function pushSync(){
+  if(!navigator.onLine){ setSync('off'); return; }
+  try{
+    setSync('ing');
+    const body=JSON.stringify({updated:DB.updated||0, data:DB});
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch(BACKEND+'/api/sync?key='+encodeURIComponent(SYNC_KEY),{method:'POST',headers:{'Content-Type':'application/json'},body,signal:ctrl.signal});
+    clearTimeout(t);
+    if(!r.ok) throw 0;
+    setSync('ok');
+  }catch(e){ setSync('off'); }
+}
+async function pullSync(silent){
+  if(!navigator.onLine){ setSync('off'); return false; }
+  try{
+    setSync('ing');
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),8000);
+    const r=await fetch(BACKEND+'/api/sync?key='+encodeURIComponent(SYNC_KEY),{cache:'no-store',signal:ctrl.signal});
+    clearTimeout(t);
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    if(j&&j.data){
+      const remote=j.data; const ru=Number(remote.updated)||0; const lu=Number(DB.updated)||0;
+      if(ru>lu){
+        _suppressPush=true;
+        DB=mergeDB(DB, remote);
+        DB.updated=Math.max(lu,ru);
+        save();
+        _suppressPush=false;
+        initShowAll(); renderSidebar(); renderCheckin(); renderView();
+        setSync('ok');
+        if(!silent) toast('已从云端同步最新数据 ☁️');
+        return true;
+      }
+    }
+    setSync('ok');
+    return false;
+  }catch(e){ setSync('off'); if(!silent) toast('云端暂时连不上，用的本地数据'); return false; }
+}
+function setSync(state){
+  const b=document.getElementById('syncBadge'); if(!b) return;
+  if(state==='ing'){ b.textContent='☁️ 同步中…'; b.style.color='#c98'; b.style.opacity='.9'; }
+  else if(state==='ok'){ b.textContent='☁️ 已同步'; b.style.color='#3a9'; b.style.opacity='.85'; }
+  else { b.textContent='📱 仅本地'; b.style.color='#b88'; b.style.opacity='.7'; }
+}
+function injectSyncBadge(){
+  if(document.getElementById('syncBadge')) return;
+  const b=document.createElement('div'); b.id='syncBadge';
+  b.style.cssText='position:fixed;right:10px;bottom:10px;z-index:9999;font-size:12px;padding:5px 11px;border-radius:999px;background:rgba(255,255,255,.92);color:#b88;box-shadow:0 2px 10px rgba(0,0,0,.15);cursor:pointer;user-select:none;backdrop-filter:blur(4px);font-family:inherit;';
+  b.title='云端同步 · 点击立即同步';
+  b.onclick=()=>pullSync(false).then(()=>pushSync());
+  document.body.appendChild(b);
+  setSync('off');
+}
 
 /* ===================== 模块元信息 ===================== */
 const MODULES = {
@@ -1543,6 +1628,10 @@ function init(){
   setupAudio();
   renderClock(); renderCheckin(); renderQuote(); renderView();
   setInterval(renderClock,1000);
+  // 云端同步：启动即拉取最新，之后每 45 秒自动双向同步
+  injectSyncBadge();
+  pullSync(true).then(()=>pushSync());
+  setInterval(()=>{ pullSync(true).then(()=>pushSync()); }, 45000);
 }
 function setupAudio(){
   const a=document.getElementById('player');
