@@ -1,0 +1,19 @@
+# WorkBuddy project memory (contains secrets / tokens — DO NOT COMMIT)
+.workbuddy/
+
+# Build artifacts
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyz
+*.exe
+
+# Local probe / temp files
+probe*.py
+_c.js
+_news_raw.json
+news_crawl.json
+_api.json
+_app.html
+_api_cache*
