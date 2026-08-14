@@ -237,6 +237,10 @@
   .rq-fb{font-size:12px;margin-top:6px}
   .rq-fb.ok{color:#1d8a55}
   .rq-fb.no{color:#c0392b}
+  .rq-result{font-size:15px;margin:6px 0 4px;color:var(--text)}
+  .rq-result b{color:var(--pink-deep);font-size:18px}
+  .rq-emoji{font-size:14px;margin-bottom:12px}
+  .rq-start{font-size:14px;padding:10px 22px;border-radius:22px;border:none;cursor:pointer}
   .reader-card .spk{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--pink);background:#fff;color:var(--pink-deep);border-radius:20px;padding:5px 12px;font-size:12px;cursor:pointer;margin-top:10px}
   .reader-card .spk:hover{background:var(--pink);color:#fff}
   .reader-body{font-size:14px;line-height:1.8;color:var(--text);white-space:pre-wrap}
@@ -647,7 +651,7 @@ const MODULES = {
   music:{name:'音乐',icon:'🎵',daily:false,render:renderMusic},
 };
 let active = 'english';
-const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null, eng:{phase:'idle'}, readFilter:'all', readQuiz:{} };
+const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null, eng:{phase:'idle'}, readFilter:'all', readQuiz:{}, curRead:null };
 
 function initShowAll(){
   const ids=Object.keys(MODULES);
@@ -852,10 +856,10 @@ function readingCard(r){
     <div class="read-en">${esc(r.en)}<button class="spk" data-act="speak" data-text="${esc(r.en)}">🔊 朗读英文</button></div>
     ${r.zh?`<div class="read-zh">${esc(r.zh)}</div>`:''}
     ${r.note?`<div class="read-note">💡 ${esc(r.note)}</div>`:''}
-    ${readingQuizHTML(r)}
+    <div id="readQuizBox">${readingQuizPanel(r)}</div>
   </div>`;
 }
-/* 每日阅读：极简小测验（选项题，基于文章生词，确定性生成不跳变） */
+/* 每日阅读：多关卡选择题小测验（基于文章生词，确定性生成不跳变） */
 let _ALL_WORDS=null;
 function parseNote(note){
   if(!note) return [];
@@ -864,7 +868,7 @@ function parseNote(note){
     part=part.trim(); if(!part) return;
     const sp=part.indexOf(' ');
     if(sp<0){ out.push({word:part,cn:part}); return; }
-    const word=part.slice(0,sp).trim(), cn=part.slice(sp+1).trim();
+    const word=part.slice(0,sp).trim(), cn=part.slice(sp+1).trim().replace(/[。，]$/,'');
     if(word) out.push({word,cn});
   });
   return out;
@@ -881,37 +885,98 @@ function seededShuffle(arr,seed){
   for(let i=a.length-1;i>0;i--){ seed=(seed*1103515245+12345)&0x7fffffff; const j=seed%(i+1); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
 }
-function readingQuizHTML(r){
-  if(!r.note) return '';
-  const words=parseNote(r.note);
-  if(words.length<2) return '';
-  const key=r.title;
-  if(!ui.readQuiz[key]) ui.readQuiz[key]=[null,null];
-  const picked=ui.readQuiz[key];
-  const pool=allWords();
-  let h='';
-  for(let q=0;q<2;q++){
-    const seed=hashStr(key+'#'+q);
-    let wi=seed%words.length, w2=(seed+7)%words.length;
-    if(w2===wi) w2=(w2+1)%words.length;
-    const w=words[wi];
-    const others=pool.filter(x=>x.cn!==w.cn);
-    const dist=seededShuffle(others, hashStr(key+'#'+q+'#d')).slice(0,3);
-    const opts=seededShuffle([w.cn, dist[0].cn, dist[1].cn, dist[2].cn], hashStr(key+'#'+q+'#s'));
-    const correctPos=opts.indexOf(w.cn);
-    let optsHtml='';
-    opts.forEach((o,oi)=>{
-      let cls='rq-opt';
-      if(picked[q]!==null){ if(oi===correctPos) cls+=' correct'; else if(oi===picked[q]) cls+=' wrong'; }
-      const dis=picked[q]!==null?'disabled':'';
-      optsHtml+=`<button class="${cls}" data-act="readQuiz" data-key="${esc(key)}" data-q="${q}" data-opt="${oi}" ${dis}>${esc(o)}</button>`;
-    });
-    const fb = picked[q]!==null
-      ? (picked[q]===correctPos ? `<div class="rq-fb ok">✅ 答对啦</div>` : `<div class="rq-fb no">❌ 正确：${esc(w.cn)}</div>`)
-      : '';
-    h+=`<div class="rq-q"><div class="rq-qw">「${esc(w.word)}」 是什么意思？</div><div class="rq-opts">${optsHtml}</div>${fb}</div>`;
+function escapeRe(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+const READ_QSTAGES=['第1关 · 看词选义','第2关 · 看义选词','第3关 · 句子填空'];
+const READ_DECOYS=[{w:'vivid',cn:'生动的'},{w:'gentle',cn:'温柔的'},{w:'ordinary',cn:'平凡的'},{w:'brave',cn:'勇敢的'},{w:'silent',cn:'安静的'},{w:'ancient',cn:'古老的'},{w:'tender',cn:'柔软的'},{w:'calm',cn:'平静的'},{w:'noble',cn:'高尚的'},{w:'humble',cn:'谦逊的'}];
+function articleWords(r){
+  if(r.words && r.words.length) return r.words.map(x=>({word:x.w||x.word, cn:x.cn}));
+  return parseNote(r.note);
+}
+function rqOpts(correct, decoyPool, seed){
+  const d=seededShuffle(decoyPool, seed).slice(0,3);
+  return seededShuffle([correct, d[0], d[1], d[2]], (seed^0x9e3779b9)>>>0);
+}
+function rqSentences(r, words, seed){
+  if(!r.en) return [];
+  const sentences=r.en.split(/(?<=[.!?])\s+/);
+  const out=[];
+  for(const w of words){
+    if(out.length>=3) break;
+    const re=new RegExp('\\b'+escapeRe(w.word)+'\\b','i');
+    const sent=sentences.find(s=> re.test(s) && s.length<200);
+    if(sent) out.push({type:'blank', word:w.word, prompt:'填空：'+sent.replace(re,'______'), answer:w.word});
   }
-  return `<div class="read-quiz"><div class="rq-head">💡 小测验 · 巩固一下（2题）</div>${h}</div>`;
+  return out;
+}
+function buildReadStages(r){
+  const words=articleWords(r);
+  if(!words || words.length<2) return null;
+  const decoy=words.map(x=>({w:x.word,cn:x.cn})).concat(READ_DECOYS);
+  const seed=hashStr(r.title||'x');
+  const s1=[], s2=[];
+  words.slice(0,3).forEach((w,qi)=>{
+    const d1=decoy.filter(x=>x.cn!==w.cn).map(x=>x.cn);
+    s1.push({type:'w2cn', prompt:`「${esc(w.word)}」 是什么意思？`, options:rqOpts(w.cn, d1, seed+qi*7+1), answer:w.cn, picked:null, ok:null});
+    const d2=decoy.filter(x=>x.w!==w.word).map(x=>x.w);
+    s2.push({type:'cn2w', prompt:`「${esc(w.cn)}」 对应的单词是？`, options:rqOpts(w.word, d2, seed+qi*7+2), answer:w.word, picked:null, ok:null});
+  });
+  const stages=[s1,s2];
+  const s3=rqSentences(r, words, seed+99).map(q=>({...q, options:rqOpts(q.answer, decoy.filter(x=>x.w!==q.answer).map(x=>x.w), seed+200), picked:null, ok:null}));
+  if(s3.length) stages.push(s3);
+  return stages;
+}
+function readingQuizPanel(r){
+  const key=r.title;
+  const g=ui.readQuiz[key];
+  const words=articleWords(r);
+  if(!words || words.length<2){
+    return `<div class="read-quiz"><div class="rq-head">💡 这篇生词较少，先静心读一读吧～</div></div>`;
+  }
+  if(!g || g.phase==='idle'){
+    return `<div class="read-quiz">
+      <div class="rq-head">💡 小测验 · 选择题闯关</div>
+      <p class="mute" style="margin:8px 0 12px">用本篇生词玩几关，闯完记得更牢 🌟</p>
+      <button class="b-pink rq-start" data-act="readQuizStart" data-key="${esc(key)}">▶ 开始复习</button>
+    </div>`;
+  }
+  if(g.phase==='done'){
+    const pct=Math.round(g.score/g.total*100);
+    return `<div class="read-quiz">
+      <div class="rq-head">🏆 复习完成！</div>
+      <div class="rq-result">总得分 <b>${g.score}</b> / ${g.total} <span class="mute">(${pct}%)</span></div>
+      <div class="rq-emoji">${pct===100?'🌟 全对，词汇小达人！':pct>=70?'🎉 很棒，常回看更稳':'💪 多来几轮就记住啦'}</div>
+      <button class="b-pink rq-start" data-act="readQuizReplay" data-key="${esc(key)}">🔁 再复习一次</button>
+    </div>`;
+  }
+  if(g.phase==='stageDone'){
+    const s=g.stage, got=g.stages[s].filter(q=>q.ok).length, tot=g.stages[s].length, last=s>=g.stages.length-1;
+    return `<div class="read-quiz">
+      <div class="rq-head">${READ_QSTAGES[s]||('第'+(s+1)+'关')} 完成 🎊</div>
+      <div class="rq-result">本关 <b>${got}</b> / ${tot} 正确</div>
+      <div class="rq-emoji">${got===tot?'✨ 完美通关！':got>=Math.ceil(tot*0.6)?'👍 不错，下一关继续':'💡 错题记得回头看哦'}</div>
+      <button class="b-pink rq-start" data-act="${last?'readQuizFinish':'readQuizNextStage'}" data-key="${esc(key)}">${last?'查看总成绩 🏆':'进入下一关 ▶'}</button>
+    </div>`;
+  }
+  // playing
+  const qs=g.stages[g.stage], q=qs[g.i], meta=READ_QSTAGES[g.stage]||('第'+(g.stage+1)+'关');
+  let optsTxt='';
+  q.options.forEach((o,oi)=>{
+    let cls='eng-opt';
+    if(q.picked!==null){ if(o===q.answer) cls+=' correct'; else if(oi===q.picked) cls+=' wrong'; }
+    optsTxt+=`<button class="${cls}" data-act="readQuizAnswer" data-key="${esc(key)}" data-q="${g.i}" data-opt="${oi}" ${q.picked!==null?'disabled':''}>${esc(o)}</button>`;
+  });
+  const fb = q.picked!==null ? `<div class="eng-fb ${q.ok?'ok':'no'}">${q.ok?'✅ 答对了！':'❌ 正确答案：'+esc(q.answer)}</div>` : '';
+  const nb = q.picked!==null ? `<button class="b-soft eng-next" data-act="readQuizNext" data-key="${esc(key)}">${g.i+1>=qs.length?'本关完成 🎊':'下一题 →'}</button>` : '';
+  return `<div class="read-quiz">
+    <div class="rq-head">${meta} <span class="mute" style="font-size:12px">第 ${g.i+1}/${qs.length} 题</span></div>
+    <div class="eng-q">${q.prompt}</div>
+    <div class="eng-opts">${optsTxt}</div>
+    ${fb}${nb?('<div style="margin-top:12px">'+nb+'</div>'):''}
+  </div>`;
+}
+function refreshReadQuiz(){
+  const box=document.getElementById('readQuizBox');
+  if(box && ui.curRead) box.innerHTML=readingQuizPanel(ui.curRead);
 }
 function srcClass(s){ return s==='央视新闻'?'src-cctv':s==='人民网'?'src-people':s==='新华网'?'src-xinhua':s==='微博热搜'?'src-weibo':s==='抖音热点'?'src-douyin':s==='小红书热点'?'src-xhs':s==='热门'?'src-hot2':'src-hot'; }
 function copyNewsUrl(btn){
@@ -1395,6 +1460,7 @@ function renderReading(){
   if(readIdx<0) readIdx=dayOfYear()%READINGS.length;
   if(!pool.includes(readIdx)) readIdx=pool[0];
   const r=READINGS[readIdx];
+  ui.curRead=r;
   const fbtn=(f,label)=>`<button class="b-chip ${ui.readFilter===f?'on':''}" data-act="readFilter" data-f="${f}">${label}</button>`;
   let h=`<div class="mod-head"><h2>📖 每日阅读</h2>
     <div class="stats"><span>第 ${pool.indexOf(readIdx)+1} / ${pool.length} 篇${ui.readFilter==='TED'?' · TED':ui.readFilter==='essay'?' · 美文':''}</span><span id="readStatus" class="pill">离线精选</span></div></div>
@@ -1419,27 +1485,32 @@ function rotateReading(dir){
 async function fetchReading(manual){
   const statusEl=document.getElementById('readStatus');
   const el=document.getElementById('reader');
+  const isTED = ui.readFilter==='TED';
+  const url = isTED ? 'ted.json?t='+Date.now() : 'readings.json?t='+Date.now();
+  const label = isTED ? 'TED' : '美文';
   if(statusEl) statusEl.textContent='获取中…';
-  if(el) el.innerHTML='<p class="empty">正在联网获取美文…</p>';
+  if(el) el.innerHTML='<p class="empty">正在联网获取'+label+'…</p>';
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),8000);
   try{
-    // 同源加载（服务端预生成的双语美文池，国内永不超时）
-    const res=await fetch('readings.json?t='+Date.now(),{cache:'no-store',signal:controller.signal});
+    // 同源加载（服务端预生成的双语文章池，国内永不超时）
+    const res=await fetch(url,{cache:'no-store',signal:controller.signal});
     clearTimeout(timer);
     if(!res.ok) throw new Error('bad');
     const data=await res.json();
     const pool=(data&&data.items)||[];
     if(!pool.length) throw new Error('empty');
     const r=pool[Math.floor(Math.random()*pool.length)];
+    if(!r.src) r.src = isTED ? 'TED' : 'READ';
+    ui.curRead=r;
     if(el) el.innerHTML=readingCard(r);
-    if(statusEl) statusEl.textContent='在线美文';
-    toast('已获取在线美文 ✨');
+    if(statusEl) statusEl.textContent = isTED ? '在线TED' : '在线美文';
+    toast('已获取在线'+label+' ✨');
   }catch(e){
     clearTimeout(timer);
     if(statusEl) statusEl.textContent='离线精选';
     if(el) el.innerHTML=readingCard(READINGS[readIdx<0?dayOfYear()%READINGS.length:readIdx]);
-    toast('在线美文暂时连不上～已显示离线长文 📖');
+    toast('在线'+label+'暂时连不上～已显示离线长文 📖');
   }
 }
 
@@ -1718,12 +1789,32 @@ function handleAct(act,el){
       if(!pool.includes(readIdx)) readIdx=pool[0];
       renderView(); break;
     }
-    case 'readQuiz': {
+    case 'readQuizStart': case 'readQuizReplay': {
+      const key=el.dataset.key;
+      const stages=buildReadStages(ui.curRead);
+      if(!stages){ toast('这篇生词太少啦～'); break; }
+      ui.readQuiz[key]={phase:'playing',stage:0,i:0,score:0,total:stages.reduce((a,s)=>a+s.length,0),stages};
+      refreshReadQuiz(); break;
+    }
+    case 'readQuizAnswer': {
       const key=el.dataset.key, q=+el.dataset.q, opt=+el.dataset.opt;
-      if(!ui.readQuiz[key]) ui.readQuiz[key]=[null,null];
-      if(ui.readQuiz[key][q]!==null) break;
-      ui.readQuiz[key][q]=opt;
-      renderView(); break;
+      const g=ui.readQuiz[key]; if(!g||g.phase!=='playing') break;
+      const qq=g.stages[g.stage][q]; if(qq.picked!==null) break;
+      qq.picked=opt; if(qq.options[opt]===qq.answer){ qq.ok=true; g.score++; } else qq.ok=false;
+      refreshReadQuiz(); break;
+    }
+    case 'readQuizNext': {
+      const key=el.dataset.key; const g=ui.readQuiz[key]; if(!g) break;
+      g.i++; if(g.i>=g.stages[g.stage].length) g.phase='stageDone';
+      refreshReadQuiz(); break;
+    }
+    case 'readQuizNextStage': {
+      const key=el.dataset.key; const g=ui.readQuiz[key]; if(!g) break;
+      g.stage++; g.i=0; g.phase='playing'; refreshReadQuiz(); break;
+    }
+    case 'readQuizFinish': {
+      const key=el.dataset.key; const g=ui.readQuiz[key]; if(!g) break;
+      g.phase='done'; refreshReadQuiz(); break;
     }
     case 'refreshNews': fetchNews(true); break;
     case 'newsFilter': selectNewsFilter(el.dataset.src); break;
