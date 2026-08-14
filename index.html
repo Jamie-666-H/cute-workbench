@@ -1204,7 +1204,7 @@ function buildChoice(words){
   words.forEach(w=>{
     const mode=Math.random()<0.5?'w2cn':'cn2w';
     const correct= mode==='w2cn'? w.cn : w.w;
-    const distract=pool.slice(); const opts=[];
+    const distract=pool.slice(); let opts=[];
     for(let d=0;d<3 && distract.length;d++){ const r=Math.floor(Math.random()*distract.length); const dw=distract.splice(r,1)[0]; opts.push(mode==='w2cn'?dw.cn:dw.w); }
     opts.push(correct); opts=shuffle(opts);
     const prompt= mode==='w2cn'
@@ -1217,7 +1217,7 @@ function buildChoice(words){
 function buildListen(words){
   const pool=engPool(words); const qs=[];
   words.forEach(w=>{
-    const distract=pool.slice(); const opts=[w.w];
+    const distract=pool.slice(); let opts=[w.w];
     for(let d=0;d<3 && distract.length;d++){ const r=Math.floor(Math.random()*distract.length); const dw=distract.splice(r,1)[0]; opts.push(dw.w); }
     opts=shuffle(opts);
     const prompt=`<button class="eng-play" data-act="speak" data-text="${esc(w.w)}">🔊 点击播放发音</button><div class="eng-q-sub">听到的单词是？ （提示：「${esc(w.cn)}」）</div>`;
