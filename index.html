@@ -221,6 +221,9 @@
   .src-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px;margin-bottom:8px;background:var(--pink-soft);color:var(--pink-deep)}
   .src-tag.ted{background:linear-gradient(135deg,#e8416f,#ff7eb3);color:#fff}
   .read-filters{display:flex;gap:8px;margin:10px 0 2px;flex-wrap:wrap}
+  .read-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 2px}
+  .read-top .read-filters{flex:1;margin:0;min-width:200px}
+  .read-refresh{white-space:nowrap;flex:0 0 auto;font-size:13px;padding:7px 16px}
   .b-chip{font-size:13px;padding:6px 14px;border-radius:20px;border:1px solid var(--pink-soft);background:#fff;color:var(--pink-deep);cursor:pointer;transition:.15s}
   .b-chip.on{background:linear-gradient(135deg,#e8416f,#ff7eb3);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(232,65,111,.25)}
   .read-quiz{margin-top:16px;background:linear-gradient(135deg,#fff,#fff6fa);border:1px solid var(--pink-soft);border-radius:14px;padding:14px 16px}
@@ -651,7 +654,7 @@ const MODULES = {
   music:{name:'音乐',icon:'🎵',daily:false,render:renderMusic},
 };
 let active = 'english';
-const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null, eng:{phase:'idle'}, readFilter:'all', readQuiz:{}, curRead:null };
+const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null, eng:{phase:'idle'}, readFilter:'all', readQuiz:{}, curRead:null, readOnline:false, lastOnlineTitle:null };
 
 function initShowAll(){
   const ids=Object.keys(MODULES);
@@ -1457,24 +1460,33 @@ function readingIndices(){
 }
 function renderReading(){
   const pool=readingIndices();
-  if(readIdx<0) readIdx=dayOfYear()%READINGS.length;
-  if(!pool.includes(readIdx)) readIdx=pool[0];
-  const r=READINGS[readIdx];
-  ui.curRead=r;
+  let r, srcLabel, statusTxt;
+  if(ui.readOnline && ui.curRead){
+    r=ui.curRead; srcLabel='🌍 在线新文'; statusTxt='🌍 在线新文';
+  }else{
+    if(readIdx<0) readIdx=dayOfYear()%READINGS.length;
+    if(!pool.includes(readIdx)) readIdx=pool[0];
+    r=READINGS[readIdx]; ui.curRead=r;
+    srcLabel=`第 ${pool.indexOf(readIdx)+1} / ${pool.length} 篇${ui.readFilter==='TED'?' · TED':ui.readFilter==='essay'?' · 美文':''}`;
+    statusTxt='离线精选';
+  }
   const fbtn=(f,label)=>`<button class="b-chip ${ui.readFilter===f?'on':''}" data-act="readFilter" data-f="${f}">${label}</button>`;
   let h=`<div class="mod-head"><h2>📖 每日阅读</h2>
-    <div class="stats"><span>第 ${pool.indexOf(readIdx)+1} / ${pool.length} 篇${ui.readFilter==='TED'?' · TED':ui.readFilter==='essay'?' · 美文':''}</span><span id="readStatus" class="pill">离线精选</span></div></div>
-    <div class="read-filters">${fbtn('all','🌐 全部')}${fbtn('TED','🎬 TED')}${fbtn('essay','📝 美文')}</div>
-    <p class="mute" style="margin:10px 0 12px">每天自动推荐一篇双语长文，可上下翻看；联网时也能拉取实时美文 🌍</p>
+    <div class="stats"><span>${srcLabel}</span><span id="readStatus" class="pill">${statusTxt}</span></div></div>
+    <div class="read-top">
+      <div class="read-filters">${fbtn('all','🌐 全部')}${fbtn('TED','🎬 TED')}${fbtn('essay','📝 美文')}</div>
+      <button class="b-pink read-refresh" data-act="refreshRead">🔄 联网获取新文</button>
+    </div>
+    <p class="mute" style="margin:10px 0 12px">每天自动推荐一篇双语长文，可上下翻看；点上方「联网获取新文」可拉取离线库之外的新文章 🌍</p>
     <div class="reader" id="reader">${readingCard(r)}</div>
     <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
       <button class="b-soft" data-act="readPrev">📜 上一篇</button>
       <button class="b-soft" data-act="readNext">下一篇 📜</button>
-      <button class="b-pink" data-act="refreshRead" style="margin-left:auto">🔄 获取实时美文</button>
     </div>`;
   return h;
 }
 function rotateReading(dir){
+  ui.readOnline=false;
   const pool=readingIndices();
   let pos=pool.indexOf(readIdx);
   if(pos<0) pos=0;
@@ -1484,33 +1496,37 @@ function rotateReading(dir){
 }
 async function fetchReading(manual){
   const statusEl=document.getElementById('readStatus');
-  const el=document.getElementById('reader');
   const isTED = ui.readFilter==='TED';
-  const url = isTED ? 'ted.json?t='+Date.now() : 'readings.json?t='+Date.now();
-  const label = isTED ? 'TED' : '美文';
+  const url = 'readings_online.json?t='+Date.now();
   if(statusEl) statusEl.textContent='获取中…';
-  if(el) el.innerHTML='<p class="empty">正在联网获取'+label+'…</p>';
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),8000);
   try{
-    // 同源加载（服务端预生成的双语文章池，国内永不超时）
+    // 同源加载「在线文库」：离线库之外的新文章（国内永不超时）
     const res=await fetch(url,{cache:'no-store',signal:controller.signal});
     clearTimeout(timer);
     if(!res.ok) throw new Error('bad');
     const data=await res.json();
-    const pool=(data&&data.items)||[];
+    let pool=(data&&data.items)||[];
+    if(isTED) pool=pool.filter(r=>r.src==='TED');
+    else if(ui.readFilter==='essay') pool=pool.filter(r=>!r.src);
     if(!pool.length) throw new Error('empty');
-    const r=pool[Math.floor(Math.random()*pool.length)];
+    let cand=pool.filter(r=>r.title!==ui.lastOnlineTitle);
+    if(!cand.length) cand=pool;
+    const r=cand[Math.floor(Math.random()*cand.length)];
     if(!r.src) r.src = isTED ? 'TED' : 'READ';
-    ui.curRead=r;
-    if(el) el.innerHTML=readingCard(r);
-    if(statusEl) statusEl.textContent = isTED ? '在线TED' : '在线美文';
-    toast('已获取在线'+label+' ✨');
+    ui.curRead=r; ui.lastOnlineTitle=r.title; ui.readOnline=true;
+    renderView();
+    toast('已获取在线新文 ✨');
   }catch(e){
     clearTimeout(timer);
+    // 离线兜底：回退到内置离线长文库
+    ui.readOnline=false;
+    if(readIdx<0) readIdx=dayOfYear()%READINGS.length;
+    ui.curRead=READINGS[readIdx];
     if(statusEl) statusEl.textContent='离线精选';
-    if(el) el.innerHTML=readingCard(READINGS[readIdx<0?dayOfYear()%READINGS.length:readIdx]);
-    toast('在线'+label+'暂时连不上～已显示离线长文 📖');
+    renderView();
+    toast('在线文库暂时连不上～已显示离线长文 📖');
   }
 }
 
@@ -1785,6 +1801,7 @@ function handleAct(act,el){
     case 'refreshRead': fetchReading(true); break;
     case 'readFilter': {
       ui.readFilter=el.dataset.f;
+      ui.readOnline=false;
       const pool=readingIndices();
       if(!pool.includes(readIdx)) readIdx=pool[0];
       renderView(); break;
