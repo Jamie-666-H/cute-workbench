@@ -199,6 +199,17 @@
   .eng-result{font-size:20px;margin:10px 0}
   .eng-result b{color:var(--pink-deep)}
   .eng-emoji{font-size:15px;margin-bottom:12px}
+  .eng-stages{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+  .eng-chip{font-size:12px;font-weight:700;background:var(--pink-soft);color:var(--pink-deep);border-radius:20px;padding:4px 10px}
+  .eng-play{border:2px solid var(--pink);background:#fff;color:var(--pink-deep);border-radius:12px;padding:11px 18px;font-weight:800;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .eng-play:hover{background:var(--pink);color:#fff}
+  .eng-slots{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 4px;justify-content:center}
+  .eng-slot{width:34px;height:40px;border:2px dashed var(--pink);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800;color:var(--pink-deep);text-transform:lowercase}
+  .eng-slot.filled{border-style:solid;background:var(--pink-soft)}
+  .eng-tiles{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;justify-content:center}
+  .eng-tile{border:2px solid var(--line);background:#fff;color:var(--pink-deep);border-radius:10px;width:38px;height:42px;font-size:19px;font-weight:800;cursor:pointer;text-transform:lowercase;transition:.12s}
+  .eng-tile:hover:not(:disabled){border-color:var(--pink);transform:translateY(-2px)}
+  .eng-tile.used{opacity:.3;cursor:default}
   /* 阅读 / 新闻 卡片 */
   .mute{color:var(--text-soft);font-size:13px}
   .reader{background:var(--card);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
@@ -1176,64 +1187,105 @@ function todayEnglishWords(){
   for(let k=0;k<4;k++) arr.push(CET6[(base+k*step)%n]);
   return arr;
 }
-function buildEngQuestions(words){
-  const pool=CET6.filter(x=>!words.includes(x));
-  const qs=[];
+const ENG_STAGES=[
+  {name:'第一关 · 小测', short:'小测', desc:'看词选义 / 看义选词'},
+  {name:'第二关 · 听音', short:'听音', desc:'听发音，选出单词'},
+  {name:'第三关 · 拼词', short:'拼词', desc:'把字母拼回原词'},
+];
+function engPool(words){ return CET6.filter(x=>!words.includes(x)); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function buildSpellTiles(w){
+  let t=shuffle(w.split(''));
+  if(t.join('')===w && t.length>1) t=shuffle(t);
+  return t;
+}
+function buildChoice(words){
+  const pool=engPool(words); const qs=[];
   words.forEach(w=>{
-    const mode = Math.random()<0.5 ? 'w2cn':'cn2w';
-    const correct = mode==='w2cn' ? w.cn : w.w;
+    const mode=Math.random()<0.5?'w2cn':'cn2w';
+    const correct= mode==='w2cn'? w.cn : w.w;
     const distract=pool.slice(); const opts=[];
-    for(let d=0; d<3 && distract.length; d++){
-      const r=Math.floor(Math.random()*distract.length);
-      const dw=distract.splice(r,1)[0];
-      opts.push(mode==='w2cn'? dw.cn : dw.w);
-    }
-    opts.push(correct);
-    for(let i=opts.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [opts[i],opts[j]]=[opts[j],opts[i]]; }
-    const prompt = mode==='w2cn'
-      ? `<span class="eng-q-w">${esc(w.w)}</span> <button class="spk" data-act="speak" data-text="${esc(w.w)}">🔊</button><div class="eng-q-sub">这个单词的意思是？</div>`
+    for(let d=0;d<3 && distract.length;d++){ const r=Math.floor(Math.random()*distract.length); const dw=distract.splice(r,1)[0]; opts.push(mode==='w2cn'?dw.cn:dw.w); }
+    opts.push(correct); opts=shuffle(opts);
+    const prompt= mode==='w2cn'
+      ? `<span class="eng-q-w">${esc(w.w)}</span> <button class="spk" data-act="speak" data-text="${esc(w.w)}">🔊</button><div class="eng-q-sub">这个词的意思是？</div>`
       : `<div class="eng-q-cn">「${esc(w.cn)}」</div><div class="eng-q-sub">对应哪个单词？</div>`;
-    qs.push({prompt, options:opts, answer:correct, picked:null, ok:null});
+    qs.push({type:'choice', prompt, options:opts, answer:correct, picked:null, ok:null});
   });
   return qs;
 }
+function buildListen(words){
+  const pool=engPool(words); const qs=[];
+  words.forEach(w=>{
+    const distract=pool.slice(); const opts=[w.w];
+    for(let d=0;d<3 && distract.length;d++){ const r=Math.floor(Math.random()*distract.length); const dw=distract.splice(r,1)[0]; opts.push(dw.w); }
+    opts=shuffle(opts);
+    const prompt=`<button class="eng-play" data-act="speak" data-text="${esc(w.w)}">🔊 点击播放发音</button><div class="eng-q-sub">听到的单词是？ （提示：「${esc(w.cn)}」）</div>`;
+    qs.push({type:'listen', prompt, options:opts, answer:w.w, picked:null, ok:null});
+  });
+  return qs;
+}
+function buildSpell(words){
+  return words.map(w=>({type:'spell', word:w.w, cn:w.cn, ph:w.ph, tiles:buildSpellTiles(w.w), filled:[], used:[], answer:w.w, ok:null}));
+}
+function buildEngStages(words){ return [buildChoice(words), buildListen(words), buildSpell(words)]; }
+function engStageScore(g,s){ return g.stages[s].filter(q=>q.ok).length; }
 function renderEngGame(){
   const g=ui.eng;
   if(!g || g.phase==='idle'){
     return `<div class="eng-game">
-      <div class="eng-game-head">🎯 巩固小游戏 <span class="mute" style="font-size:12px">测测今天学的词</span></div>
-      <p class="mute" style="margin:6px 0 12px">用今天的新词玩一轮小测验，答错也没关系，记住就好～</p>
-      <button class="b-pink eng-start" data-act="engStart">▶ 开始巩固</button>
+      <div class="eng-game-head">🎮 巩固闯关 <span class="mute" style="font-size:12px">3 关卡 · 用今天的新词</span></div>
+      <div class="eng-stages">${ENG_STAGES.map((s,i)=>`<span class="eng-chip">${i+1}. ${s.short}</span>`).join('')}</div>
+      <p class="mute" style="margin:8px 0 12px">三关小游戏一步步巩固今天的词，闯完有惊喜 🎁</p>
+      <button class="b-pink eng-start" data-act="engStart">▶ 开始闯关</button>
     </div>`;
   }
   if(g.phase==='done'){
-    const pct=Math.round(g.score/g.total*100);
+    const totalQ=g.stages.reduce((a,s)=>a+s.length,0);
+    const pct=Math.round(g.score/totalQ*100);
     return `<div class="eng-game">
-      <div class="eng-game-head">🎉 本轮完成</div>
-      <div class="eng-result">得分 <b>${g.score}</b> / ${g.total} <span class="mute">(${pct}%)</span></div>
-      <div class="eng-emoji">${pct===100?'🌟 全对，太棒了！':pct>=60?'👍 不错哦，再多看几眼就熟啦':'💪 多来几轮就记住啦'}</div>
-      <button class="b-pink eng-start" data-act="engReplay">🔁 再来一轮</button>
+      <div class="eng-game-head">🏆 全部通关！</div>
+      <div class="eng-result">总得分 <b>${g.score}</b> / ${totalQ} <span class="mute">(${pct}%)</span></div>
+      <div class="eng-emoji">${pct===100?'🌟 满分通关，词汇小达人！':pct>=70?'🎉 很棒，记得常回看':'💪 多闯几轮就稳啦'}</div>
+      <button class="b-pink eng-start" data-act="engReplay">🔁 再闯一次</button>
     </div>`;
   }
-  const q=g.qs[g.i];
-  let opts='';
+  if(g.phase==='stageDone'){
+    const s=g.stage, got=engStageScore(g,s), tot=g.stages[s].length, last=s>=ENG_STAGES.length-1;
+    return `<div class="eng-game">
+      <div class="eng-game-head">${ENG_STAGES[s].name} 完成 🎊</div>
+      <div class="eng-result">本关 <b>${got}</b> / ${tot} 正确</div>
+      <div class="eng-emoji">${got===tot?'✨ 完美通关！':got>=Math.ceil(tot*0.6)?'👍 不错，下一关继续':'💡 这一关的错题记得回头看哦'}</div>
+      <button class="b-pink eng-start" data-act="${last?'engFinish':'engNextStage'}">${last?'查看总成绩 🏆':'进入下一关 ▶'}</button>
+    </div>`;
+  }
+  // playing
+  const qs=g.stages[g.stage], q=qs[g.i], meta=ENG_STAGES[g.stage];
+  const head=`<div class="eng-game-head">${meta.name} <span class="mute" style="font-size:12px">第 ${g.i+1}/${qs.length} 题</span></div>`;
+  if(q.type==='spell'){
+    const slots=[]; for(let k=0;k<q.word.length;k++){ slots.push(`<span class="eng-slot ${q.filled[k]!==undefined?'filled':''}">${esc(q.filled[k]||'')}</span>`); }
+    const tiles=q.tiles.map((t,ti)=>`<button class="eng-tile ${q.used.includes(ti)?'used':''}" data-act="engSpell" data-i="${ti}" ${q.used.includes(ti)?'disabled':''}>${esc(t)}</button>`).join('');
+    let inner;
+    if(q.ok===null){
+      inner=`<div class="eng-slots">${slots.join('')}</div><div class="eng-tiles">${tiles}</div>
+        <div style="margin-top:12px;display:flex;gap:8px"><button class="b-soft" data-act="engSpellClear">⌫ 清空重拼</button></div>`;
+    } else {
+      const fb=`<div class="eng-fb ${q.ok?'ok':'no'}">${q.ok?'✅ 拼对啦！':'❌ 正确拼写：'+esc(q.answer)}</div>`;
+      const nb=`<button class="b-soft eng-next" data-act="engNext">${g.i+1>=qs.length?'本关完成 🎊':'下一题 →'}</button>`;
+      inner=`${fb}<div class="eng-slots">${slots.join('')}</div><div style="margin-top:12px">${nb}</div>`;
+    }
+    return `<div class="eng-game">${head}<div class="eng-q-cn">「${esc(q.cn)}」 <span class="eng-q-sub">${esc(q.ph)}</span></div>${inner}</div>`;
+  }
+  // choice / listen
+  let optsTxt='';
   q.options.forEach((o,oi)=>{
     let cls='eng-opt';
-    if(q.picked!==null){
-      if(o===q.answer) cls+=' correct';
-      else if(oi===q.picked) cls+=' wrong';
-    }
-    const dis = q.picked!==null ? 'disabled' : '';
-    opts+=`<button class="${cls}" data-act="engAnswer" data-i="${oi}" ${dis}>${esc(o)}</button>`;
+    if(q.picked!==null){ if(o===q.answer) cls+=' correct'; else if(oi===q.picked) cls+=' wrong'; }
+    optsTxt+=`<button class="${cls}" data-act="engAnswer" data-i="${oi}" ${q.picked!==null?'disabled':''}>${esc(o)}</button>`;
   });
-  const fb = q.picked!==null ? `<div class="eng-fb ${q.ok?'ok':'no'}">${q.ok?'✅ 答对了！':'❌ 正确答案：'+esc(q.answer)}</div>` : '';
-  const nextBtn = q.picked!==null ? `<button class="b-soft eng-next" data-act="engNext">${g.i+1>=g.total?'看结果 🎁':'下一题 →'}</button>` : '';
-  return `<div class="eng-game">
-    <div class="eng-game-head">🎯 巩固小游戏 <span class="mute" style="font-size:12px">第 ${g.i+1}/${g.total} 题</span></div>
-    <div class="eng-q">${q.prompt}</div>
-    <div class="eng-opts">${opts}</div>
-    ${fb}${nextBtn?('<div style="margin-top:12px">'+nextBtn+'</div>'):''}
-  </div>`;
+  const fb=q.picked!==null?`<div class="eng-fb ${q.ok?'ok':'no'}">${q.ok?'✅ 答对了！':'❌ 正确答案：'+esc(q.answer)}</div>`:'';
+  const nb=q.picked!==null?`<button class="b-soft eng-next" data-act="engNext">${g.i+1>=qs.length?'本关完成 🎊':'下一题 →'}</button>`:'';
+  return `<div class="eng-game">${head}<div class="eng-q">${q.prompt}</div><div class="eng-opts">${optsTxt}</div>${fb}${nb?('<div style="margin-top:12px">'+nb+'</div>'):''}</div>`;
 }
 function renderEnglish(){
   const words=todayEnglishWords();
@@ -1606,20 +1658,45 @@ function handleAct(act,el){
     case 'openSettings': openSettings(); break;
     case 'closeSettings': $('#modalMask').classList.remove('show'); break;
     case 'engStart': case 'engReplay': {
-      ui.eng={phase:'playing', i:0, score:0, qs:buildEngQuestions(todayEnglishWords()), total:0};
-      ui.eng.total=ui.eng.qs.length; renderView(); break;
+      ui.eng={phase:'playing', stage:0, i:0, score:0, stages:buildEngStages(todayEnglishWords())};
+      renderView(); break;
     }
     case 'engAnswer': {
       const g=ui.eng; if(!g||g.phase!=='playing') break;
-      const q=g.qs[g.i]; if(q.picked!==null) break;
+      const q=g.stages[g.stage][g.i]; if(!q||q.picked!==null||q.type==='spell') break;
       const oi=+el.dataset.i; q.picked=oi;
       if(q.options[oi]===q.answer){ q.ok=true; g.score++; } else q.ok=false;
       renderView(); break;
     }
+    case 'engSpell': {
+      const g=ui.eng; if(!g||g.phase!=='playing') break;
+      const q=g.stages[g.stage][g.i]; if(!q||q.type!=='spell'||q.ok!==null) break;
+      const ti=+el.dataset.i; if(q.used.includes(ti)) break;
+      q.filled.push(q.tiles[ti]); q.used.push(ti);
+      if(q.filled.length===q.word.length){
+        if(q.filled.join('')===q.answer){ q.ok=true; g.score++; } else q.ok=false;
+      }
+      renderView(); break;
+    }
+    case 'engSpellClear': {
+      const g=ui.eng; if(!g) break;
+      const q=g.stages[g.stage] && g.stages[g.stage][g.i];
+      if(q && q.type==='spell' && q.ok===null){ q.filled=[]; q.used=[]; renderView(); }
+      break;
+    }
     case 'engNext': {
       const g=ui.eng; if(!g) break;
-      g.i++; if(g.i>=g.total) g.phase='done';
+      const qs=g.stages[g.stage]; g.i++;
+      if(g.i>=qs.length) g.phase='stageDone';
       renderView(); break;
+    }
+    case 'engNextStage': {
+      const g=ui.eng; if(!g) break;
+      g.stage++; g.i=0; g.phase='playing'; renderView(); break;
+    }
+    case 'engFinish': {
+      const g=ui.eng; if(!g) break;
+      g.phase='done'; renderView(); break;
     }
     case 'exportData': exportData(); break;
     case 'clearAll': clearAll(); break;
