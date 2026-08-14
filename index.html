@@ -172,6 +172,33 @@
   .spk:hover{background:var(--pink);color:#fff;transform:scale(1.08)}
   .spk:active{transform:scale(.94)}
   .spk.mini{width:24px;height:24px;font-size:11px;margin-left:5px}
+  /* 英语学习：2×2 单词卡 + 巩固小游戏 */
+  .eng-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+  .eng-card{background:linear-gradient(135deg,#fff,#fff0f6);border:2px solid var(--line);border-radius:14px;padding:11px 12px;box-shadow:0 3px 10px rgba(255,143,177,.10)}
+  .eng-w{font-size:17px;font-weight:800;color:var(--pink-deep);display:flex;align-items:center;gap:6px}
+  .eng-w .spk{margin-left:auto}
+  .eng-ph{font-size:12px;color:var(--text-soft);margin-top:3px;font-style:italic;letter-spacing:.3px}
+  .eng-pos{font-style:normal;margin-left:5px;font-weight:600}
+  .eng-cn{font-size:13px;color:var(--text);margin-top:3px;line-height:1.4}
+  .eng-game{background:#fff;border:2px dashed var(--pink);border-radius:16px;padding:16px;box-shadow:0 4px 14px rgba(255,143,177,.10)}
+  .eng-game-head{font-weight:800;color:var(--pink-deep);font-size:15px;display:flex;align-items:center;gap:8px}
+  .eng-start{margin-top:6px;border:none;border-radius:12px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer}
+  .eng-q{margin:12px 0 4px;font-size:16px}
+  .eng-q-w{font-weight:800;color:var(--pink-deep);font-size:22px}
+  .eng-q-cn{font-weight:800;font-size:19px;color:var(--pink-deep)}
+  .eng-q-sub{font-size:13px;color:var(--text-soft);margin-top:5px}
+  .eng-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .eng-opt{border:2px solid var(--line);background:#fff;color:var(--text);border-radius:12px;padding:11px 10px;font-size:14px;font-weight:600;cursor:pointer;transition:.12s;word-break:break-word}
+  .eng-opt:hover:not(:disabled){border-color:var(--pink)}
+  .eng-opt.correct{background:#e7f8ec;border-color:#56c47a;color:#1f8a45}
+  .eng-opt.wrong{background:#ffeaea;border-color:#ff8aa0;color:#d6336c}
+  .eng-fb{margin-top:10px;font-weight:700;font-size:14px}
+  .eng-fb.ok{color:#1f8a45}
+  .eng-fb.no{color:#d6336c}
+  .eng-next{border:none;border-radius:12px;padding:9px 18px;font-weight:800;cursor:pointer}
+  .eng-result{font-size:20px;margin:10px 0}
+  .eng-result b{color:var(--pink-deep)}
+  .eng-emoji{font-size:15px;margin-bottom:12px}
   /* 阅读 / 新闻 卡片 */
   .mute{color:var(--text-soft);font-size:13px}
   .reader{background:var(--card);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
@@ -592,7 +619,7 @@ const MODULES = {
   music:{name:'音乐',icon:'🎵',daily:false,render:renderMusic},
 };
 let active = 'english';
-const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null };
+const ui = { showAll:{}, plogTargetId:null, viewDate:todayStr(), selMode:false, selIds:[], calY:null, calM:null, eng:{phase:'idle'} };
 
 function initShowAll(){
   const ids=Object.keys(MODULES);
@@ -634,44 +661,76 @@ const QUOTES=[
   {cn:'世界很吵，听听自己就好。',en:'The world is loud; just listen to yourself.'}
 ];
 const CET6=[
-  {w:'ambiguous',pos:'adj.',cn:'模棱两可的，含糊不清的',ex:'His ambiguous answer confused everyone.',exCn:'他模棱两可的回答让大家都糊涂了。'},
-  {w:'articulate',pos:'adj./v.',cn:'表达清晰的；清晰表达',ex:'She is an articulate public speaker.',exCn:'她是一位表达清晰的演讲者。'},
-  {w:'alleviate',pos:'v.',cn:'减轻，缓解',ex:'The medicine alleviated his pain.',exCn:'药物缓解了他的疼痛。'},
-  {w:'bolster',pos:'v.',cn:'支持，加强',ex:'The data bolsters our argument.',exCn:'这些数据支持了我们的论点。'},
-  {w:'candid',pos:'adj.',cn:'坦率的，直率的',ex:'To be candid, I disagree with you.',exCn:'坦率地说，我不同意你的看法。'},
-  {w:'corroborate',pos:'v.',cn:'证实，支持',ex:'Witnesses corroborated his story.',exCn:'证人证实了他的说法。'},
-  {w:'diligent',pos:'adj.',cn:'勤奋的，用功的',ex:'She is diligent in her studies.',exCn:'她学习很勤奋。'},
-  {w:'elucidate',pos:'v.',cn:'阐明，解释清楚',ex:'He elucidated the complex theory.',exCn:'他阐明了那个复杂的理论。'},
-  {w:'formidable',pos:'adj.',cn:'令人敬畏的；强大的',ex:'They face a formidable opponent.',exCn:'他们面对一个强大的对手。'},
-  {w:'gregarious',pos:'adj.',cn:'合群的；爱交际的',ex:'He has a gregarious personality.',exCn:'他性格开朗合群。'},
-  {w:'hamper',pos:'v.',cn:'妨碍，阻碍',ex:'The storm hampered the rescue.',exCn:'暴风雨妨碍了救援。'},
-  {w:'inherent',pos:'adj.',cn:'固有的，内在的',ex:'There is a risk inherent in the plan.',exCn:'这个计划存在固有风险。'},
-  {w:'jeopardize',pos:'v.',cn:'危及，损害',ex:'His actions jeopardized the project.',exCn:'他的行为危及了项目。'},
-  {w:'knack',pos:'n.',cn:'诀窍，天赋',ex:'She has a knack for languages.',exCn:'她在语言方面很有天赋。'},
-  {w:'lucrative',pos:'adj.',cn:'赚钱的，利润丰厚的',ex:'It is a lucrative business.',exCn:'这是一门利润丰厚的生意。'},
-  {w:'meticulous',pos:'adj.',cn:'一丝不苟的，极仔细的',ex:'He is meticulous about details.',exCn:'他对细节一丝不苟。'},
-  {w:'nefarious',pos:'adj.',cn:'恶毒的，邪恶的',ex:'The nefarious plot was uncovered.',exCn:'那个恶毒的阴谋被揭穿了。'},
-  {w:'oblivious',pos:'adj.',cn:'未察觉的，不在意的',ex:'He was oblivious to the danger.',exCn:'他没有察觉到危险。'},
-  {w:'precarious',pos:'adj.',cn:'不稳定的，危险的',ex:'Their financial situation is precarious.',exCn:'他们的财务状况不稳定。'},
-  {w:'quiescent',pos:'adj.',cn:'静止的；沉寂的',ex:'The volcano is currently quiescent.',exCn:'这座火山目前处于沉寂状态。'},
-  {w:'rudimentary',pos:'adj.',cn:'基本的，初步的',ex:'He has only rudimentary skills.',exCn:'他只有最基本的技能。'},
-  {w:'scrutinize',pos:'v.',cn:'仔细检查，细看',ex:'She scrutinized the contract.',exCn:'她仔细审查了合同。'},
-  {w:'tentative',pos:'adj.',cn:'试探性的，初步的',ex:'We reached a tentative agreement.',exCn:'我们达成了一项初步协议。'},
-  {w:'ubiquitous',pos:'adj.',cn:'无处不在的',ex:'Smartphones are ubiquitous.',exCn:'智能手机无处不在。'},
-  {w:'viable',pos:'adj.',cn:'可行的，能存活的',ex:'It is a viable solution.',exCn:'这是一个可行的方案。'},
-  {w:'whimsical',pos:'adj.',cn:'异想天开的，古怪的',ex:'The design is whimsical and fun.',exCn:'这个设计充满奇思妙想。'},
-  {w:'affluent',pos:'adj.',cn:'富裕的，丰富的',ex:'They live in an affluent area.',exCn:'他们住在富裕的地区。'},
-  {w:'brevity',pos:'n.',cn:'简洁，简短',ex:'The brevity of his speech was striking.',exCn:'他演讲的简洁令人印象深刻。'},
-  {w:'comprise',pos:'v.',cn:'包含；由…组成',ex:'The committee comprises ten members.',exCn:'委员会由十人组成。'},
-  {w:'concede',pos:'v.',cn:'承认；让步',ex:'He conceded that he was wrong.',exCn:'他承认自己错了。'},
-  {w:'discern',pos:'v.',cn:'辨别，看清楚',ex:'It is hard to discern the truth.',exCn:'很难辨别真相。'},
-  {w:'empirical',pos:'adj.',cn:'经验主义的，实证的',ex:'We need empirical evidence.',exCn:'我们需要实证证据。'},
-  {w:'fluctuate',pos:'v.',cn:'波动，起伏',ex:'Prices fluctuate on a daily basis.',exCn:'价格每天波动。'},
-  {w:'mitigate',pos:'v.',cn:'减轻，缓和',ex:'Steps were taken to mitigate risk.',exCn:'已采取措施减轻风险。'},
-  {w:'salient',pos:'adj.',cn:'显著的，重要的',ex:'The salient point is quite clear.',exCn:'关键的一点很清楚。'},
-  {w:'undermine',pos:'v.',cn:'削弱，损害',ex:'His words undermined her confidence.',exCn:'他的话削弱了她的信心。'},
-  {w:'verbose',pos:'adj.',cn:'冗长的，啰嗦的',ex:'The report was needlessly verbose.',exCn:'这份报告啰嗦得毫无必要。'},
-  {w:'warrant',pos:'v./n.',cn:'保证；使有必要',ex:'The situation warrants caution.',exCn:'这种情况需要谨慎。'}
+  {w:'ambiguous',ph:'/æmˈbɪɡjuəs/',pos:'adj.',cn:'模棱两可的，含糊不清的',ex:'His ambiguous answer confused everyone.',exCn:'他模棱两可的回答让大家都糊涂了。'},
+  {w:'articulate',ph:'/ɑːrˈtɪkjuleɪt/',pos:'adj./v.',cn:'表达清晰的；清晰表达',ex:'She is an articulate public speaker.',exCn:'她是一位表达清晰的演讲者。'},
+  {w:'alleviate',ph:'/əˈliːvieɪt/',pos:'v.',cn:'减轻，缓解',ex:'The medicine alleviated his pain.',exCn:'药物缓解了他的疼痛。'},
+  {w:'bolster',ph:'/ˈboʊlstər/',pos:'v.',cn:'支持，加强',ex:'The data bolsters our argument.',exCn:'这些数据支持了我们的论点。'},
+  {w:'candid',ph:'/ˈkændɪd/',pos:'adj.',cn:'坦率的，直率的',ex:'To be candid, I disagree with you.',exCn:'坦率地说，我不同意你的看法。'},
+  {w:'corroborate',ph:'/kəˈrɒbəreɪt/',pos:'v.',cn:'证实，支持',ex:'Witnesses corroborated his story.',exCn:'证人证实了他的说法。'},
+  {w:'diligent',ph:'/ˈdɪlɪdʒənt/',pos:'adj.',cn:'勤奋的，用功的',ex:'She is diligent in her studies.',exCn:'她学习很勤奋。'},
+  {w:'elucidate',ph:'/iˈluːsɪdeɪt/',pos:'v.',cn:'阐明，解释清楚',ex:'He elucidated the complex theory.',exCn:'他阐明了那个复杂的理论。'},
+  {w:'formidable',ph:'/ˈfɔːrmɪdəbl/',pos:'adj.',cn:'令人敬畏的；强大的',ex:'They face a formidable opponent.',exCn:'他们面对一个强大的对手。'},
+  {w:'gregarious',ph:'/ɡrɪˈɡeriəs/',pos:'adj.',cn:'合群的；爱交际的',ex:'He has a gregarious personality.',exCn:'他性格开朗合群。'},
+  {w:'hamper',ph:'/ˈhæmpər/',pos:'v.',cn:'妨碍，阻碍',ex:'The storm hampered the rescue.',exCn:'暴风雨妨碍了救援。'},
+  {w:'inherent',ph:'/ɪnˈhɪrənt/',pos:'adj.',cn:'固有的，内在的',ex:'There is a risk inherent in the plan.',exCn:'这个计划存在固有风险。'},
+  {w:'jeopardize',ph:'/ˈdʒepərdaɪz/',pos:'v.',cn:'危及，损害',ex:'His actions jeopardized the project.',exCn:'他的行为危及了项目。'},
+  {w:'knack',ph:'/næk/',pos:'n.',cn:'诀窍，天赋',ex:'She has a knack for languages.',exCn:'她在语言方面很有天赋。'},
+  {w:'lucrative',ph:'/ˈluːkrətɪv/',pos:'adj.',cn:'赚钱的，利润丰厚的',ex:'It is a lucrative business.',exCn:'这是一门利润丰厚的生意。'},
+  {w:'meticulous',ph:'/məˈtɪkjələs/',pos:'adj.',cn:'一丝不苟的，极仔细的',ex:'He is meticulous about details.',exCn:'他对细节一丝不苟。'},
+  {w:'nefarious',ph:'/nɪˈferiəs/',pos:'adj.',cn:'恶毒的，邪恶的',ex:'The nefarious plot was uncovered.',exCn:'那个恶毒的阴谋被揭穿了。'},
+  {w:'oblivious',ph:'/əˈblɪviəs/',pos:'adj.',cn:'未察觉的，不在意的',ex:'He was oblivious to the danger.',exCn:'他没有察觉到危险。'},
+  {w:'precarious',ph:'/prɪˈkeriəs/',pos:'adj.',cn:'不稳定的，危险的',ex:'Their financial situation is precarious.',exCn:'他们的财务状况不稳定。'},
+  {w:'quiescent',ph:'/kwiˈesnt/',pos:'adj.',cn:'静止的；沉寂的',ex:'The volcano is currently quiescent.',exCn:'这座火山目前处于沉寂状态。'},
+  {w:'rudimentary',ph:'/ˌruːdɪˈmentri/',pos:'adj.',cn:'基本的，初步的',ex:'He has only rudimentary skills.',exCn:'他只有最基本的技能。'},
+  {w:'scrutinize',ph:'/ˈskruːtənaɪz/',pos:'v.',cn:'仔细检查，细看',ex:'She scrutinized the contract.',exCn:'她仔细审查了合同。'},
+  {w:'tentative',ph:'/ˈtentətɪv/',pos:'adj.',cn:'试探性的，初步的',ex:'We reached a tentative agreement.',exCn:'我们达成了一项初步协议。'},
+  {w:'ubiquitous',ph:'/juːˈbɪkwɪtəs/',pos:'adj.',cn:'无处不在的',ex:'Smartphones are ubiquitous.',exCn:'智能手机无处不在。'},
+  {w:'viable',ph:'/ˈvaɪəbl/',pos:'adj.',cn:'可行的，能存活的',ex:'It is a viable solution.',exCn:'这是一个可行的方案。'},
+  {w:'whimsical',ph:'/ˈwɪmzɪkl/',pos:'adj.',cn:'异想天开的，古怪的',ex:'The design is whimsical and fun.',exCn:'这个设计充满奇思妙想。'},
+  {w:'affluent',ph:'/ˈæfluənt/',pos:'adj.',cn:'富裕的，丰富的',ex:'They live in an affluent area.',exCn:'他们住在富裕的地区。'},
+  {w:'brevity',ph:'/ˈbrevəti/',pos:'n.',cn:'简洁，简短',ex:'The brevity of his speech was striking.',exCn:'他演讲的简洁令人印象深刻。'},
+  {w:'comprise',ph:'/kəmˈpraɪz/',pos:'v.',cn:'包含；由…组成',ex:'The committee comprises ten members.',exCn:'委员会由十人组成。'},
+  {w:'concede',ph:'/kənˈsiːd/',pos:'v.',cn:'承认；让步',ex:'He conceded that he was wrong.',exCn:'他承认自己错了。'},
+  {w:'discern',ph:'/dɪˈsɜːrn/',pos:'v.',cn:'辨别，看清楚',ex:'It is hard to discern the truth.',exCn:'很难辨别真相。'},
+  {w:'empirical',ph:'/ɪmˈpɪrɪkl/',pos:'adj.',cn:'经验主义的，实证的',ex:'We need empirical evidence.',exCn:'我们需要实证证据。'},
+  {w:'fluctuate',ph:'/ˈflʌktʃueɪt/',pos:'v.',cn:'波动，起伏',ex:'Prices fluctuate on a daily basis.',exCn:'价格每天波动。'},
+  {w:'mitigate',ph:'/ˈmɪtɪɡeɪt/',pos:'v.',cn:'减轻，缓和',ex:'Steps were taken to mitigate risk.',exCn:'已采取措施减轻风险。'},
+  {w:'salient',ph:'/ˈseɪliənt/',pos:'adj.',cn:'显著的，重要的',ex:'The salient point is quite clear.',exCn:'关键的一点很清楚。'},
+  {w:'undermine',ph:'/ˌʌndərˈmaɪn/',pos:'v.',cn:'削弱，损害',ex:'His words undermined her confidence.',exCn:'他的话削弱了她的信心。'},
+  {w:'verbose',ph:'/vərˈboʊs/',pos:'adj.',cn:'冗长的，啰嗦的',ex:'The report was needlessly verbose.',exCn:'这份报告啰嗦得毫无必要。'},
+  {w:'warrant',ph:'/ˈwɔːrənt/',pos:'v./n.',cn:'保证；使有必要',ex:'The situation warrants caution.',exCn:'这种情况需要谨慎。'},
+  {w:'abundance',ph:'/əˈbʌndəns/',pos:'n.',cn:'丰富，充裕',ex:'The region has an abundance of natural resources.',exCn:'该地区自然资源丰富。'},
+  {w:'adjacent',ph:'/əˈdʒeɪsnt/',pos:'adj.',cn:'邻近的，相邻的',ex:'The two buildings are adjacent to each other.',exCn:'这两栋楼彼此相邻。'},
+  {w:'bizarre',ph:'/bɪˈzɑːr/',pos:'adj.',cn:'古怪的，怪诞的',ex:'He had a bizarre dream last night.',exCn:'他昨晚做了个古怪的梦。'},
+  {w:'coherent',ph:'/koʊˈhɪrənt/',pos:'adj.',cn:'连贯的，有条理的',ex:'She gave a clear and coherent explanation.',exCn:'她给出清晰连贯的解释。'},
+  {w:'constitute',ph:'/ˈkɑːnstɪtuːt/',pos:'v.',cn:'构成，组成',ex:'Twelve months constitute a year.',exCn:'十二个月构成一年。'},
+  {w:'deduce',ph:'/dɪˈduːs/',pos:'v.',cn:'推断，演绎',ex:'We can deduce the answer from the clues.',exCn:'我们能从线索推断出答案。'},
+  {w:'elevate',ph:'/ˈelɪveɪt/',pos:'v.',cn:'提升，抬高',ex:'The new job elevated her status.',exCn:'新工作提升了她的地位。'},
+  {w:'fragile',ph:'/ˈfrædʒaɪl/',pos:'adj.',cn:'脆弱的，易碎的',ex:'Handle the vase with care; it is fragile.',exCn:'小心拿花瓶，它易碎。'},
+  {w:'hypothesis',ph:'/haɪˈpɑːθəsɪs/',pos:'n.',cn:'假设，假说',ex:'The experiment tested our hypothesis.',exCn:'实验检验了我们的假设。'},
+  {w:'incentive',ph:'/ɪnˈsentɪv/',pos:'n.',cn:'动机，刺激',ex:'Tax cuts provide an incentive to invest.',exCn:'减税提供了投资动机。'},
+  {w:'integrity',ph:'/ɪnˈteɡrəti/',pos:'n.',cn:'诚实；完整',ex:'He is a man of great integrity.',exCn:'他是个极诚实的人。'},
+  {w:'legitimate',ph:'/lɪˈdʒɪtɪmət/',pos:'adj.',cn:'合法的，合理的',ex:'She has a legitimate reason to be angry.',exCn:'她有合理的理由生气。'},
+  {w:'manifest',ph:'/ˈmænɪfest/',pos:'v./adj.',cn:'显示；明显的',ex:'His anxiety began to manifest in insomnia.',exCn:'他的焦虑开始表现为失眠。'},
+  {w:'naive',ph:'/naɪˈiːv/',pos:'adj.',cn:'天真的，幼稚的',ex:'It would be naive to trust everyone.',exCn:'轻信每个人是天真的。'},
+  {w:'orthodox',ph:'/ˈɔːrθədɑːks/',pos:'adj.',cn:'正统的，传统的',ex:'He challenged orthodox views.',exCn:'他挑战了正统观点。'},
+  {w:'paradox',ph:'/ˈpærədɑːks/',pos:'n.',cn:'悖论，矛盾',ex:'It is a paradox that we sleep to feel awake.',exCn:'睡觉为了清醒是个悖论。'},
+  {w:'quantify',ph:'/ˈkwɑːntɪfaɪ/',pos:'v.',cn:'量化',ex:'It is hard to quantify happiness.',exCn:'幸福很难量化。'},
+  {w:'retrieve',ph:'/rɪˈtriːv/',pos:'v.',cn:'取回，检索',ex:'I retrieved the file from the archive.',exCn:'我从档案中取回了文件。'},
+  {w:'simultaneous',ph:'/ˌsaɪmlˈteɪniəs/',pos:'adj.',cn:'同时的，同步的',ex:'The two events were simultaneous.',exCn:'这两件事是同时发生的。'},
+  {w:'transient',ph:'/ˈtrænʃnt/',pos:'adj.',cn:'短暂的，转瞬即逝的',ex:'Fame can be transient.',exCn:'名声可能转瞬即逝。'},
+  {w:'unanimous',ph:'/juˈnænɪməs/',pos:'adj.',cn:'一致的',ex:'The committee was unanimous in its decision.',exCn:'委员会一致通过决定。'},
+  {w:'versatile',ph:'/ˈvɜːrsətl/',pos:'adj.',cn:'多才多艺的，多用途的',ex:'She is a versatile actress.',exCn:'她是个多才多艺的演员。'},
+  {w:'accentuate',ph:'/əkˈsentʃueɪt/',pos:'v.',cn:'强调，突出',ex:'The dress accentuates her figure.',exCn:'这条裙子突出了她的身材。'},
+  {w:'deliberate',ph:'/dɪˈlɪbərət/',pos:'adj./v.',cn:'故意的；深思熟虑',ex:'It was a deliberate mistake.',exCn:'那是个故意的错误。'},
+  {w:'explicit',ph:'/ɪkˈsplɪsɪt/',pos:'adj.',cn:'明确的，清楚的',ex:'He gave explicit instructions.',exCn:'他给出了明确指示。'},
+  {w:'impartial',ph:'/ɪmˈpɑːrʃl/',pos:'adj.',cn:'公正的，无偏见的',ex:'A judge must be impartial.',exCn:'法官必须公正。'},
+  {w:'plausible',ph:'/ˈplɔːzəbl/',pos:'adj.',cn:'似乎合理的',ex:'He offered a plausible excuse.',exCn:'他给了一个似乎合理的借口。'},
+  {w:'redundant',ph:'/rɪˈdʌndənt/',pos:'adj.',cn:'多余的，冗余的',ex:'The redundant words were cut.',exCn:'多余的词被删掉了。'},
+  {w:'subtle',ph:'/ˈsʌtl/',pos:'adj.',cn:'微妙的，细微的',ex:'There is a subtle difference.',exCn:'有个微妙的区别。'},
+  {w:'tedious',ph:'/ˈtiːdiəs/',pos:'adj.',cn:'冗长乏味的',ex:'The lecture was tedious.',exCn:'那场讲座冗长乏味。'},
+  {w:'threshold',ph:'/ˈθreʃhoʊld/',pos:'n.',cn:'门槛，临界点',ex:'We are at the threshold of a new era.',exCn:'我们处于新时代的临界点。'},
+  {w:'reconcile',ph:'/ˈrekənsaɪl/',pos:'v.',cn:'调和，使和解',ex:'They reconciled their differences.',exCn:'他们调和了分歧。'}
 ];
 /* 每日阅读：内置精选（离线可读，每天轮换一篇，较长的双语短文） */
 const READINGS=[
@@ -1110,23 +1169,88 @@ function bindRange(){
 }
 
 /* --- 1. 英语学习 --- */
-function renderEnglish(){
-  const base=dayOfYear()%CET6.length;
-  let h=`<div class="mod-head"><h2>🔤 英语学习</h2>
-    <div class="stats"><span>每天 3 个六级核心词</span></div></div>
-    <p class="mute" style="margin-bottom:14px">每天自动更新，跟着节奏慢慢积累就好～ 🌱</p>
-    <div class="cet6">`;
-  for(let k=0;k<3;k++){
-    const idx=(base+k)%CET6.length;
-    const it=CET6[idx];
-    h+=`<div class="cet6-card">
-      <div class="cet6-w">${esc(it.w)}<span class="cet6-pos">${esc(it.pos)}</span>
-        <button class="spk" data-act="speak" data-text="${esc(it.w)}" title="朗读单词 🔊">🔊</button></div>
-      <div class="cet6-cn">${esc(it.cn)}</div>
-      <div class="cet6-ex">${esc(it.ex)} <button class="spk mini" data-act="speak" data-text="${esc(it.ex)}" title="朗读例句 🔊">🔊</button><br><span class="sub">${esc(it.exCn)}</span></div>
+/* 每天 4 个六级核心词：用与词库长度互质的步进，保证相邻天互不重叠 → 每天都是新词 */
+function todayEnglishWords(){
+  const n=CET6.length, base=dayOfYear()%n, step=17;
+  const arr=[];
+  for(let k=0;k<4;k++) arr.push(CET6[(base+k*step)%n]);
+  return arr;
+}
+function buildEngQuestions(words){
+  const pool=CET6.filter(x=>!words.includes(x));
+  const qs=[];
+  words.forEach(w=>{
+    const mode = Math.random()<0.5 ? 'w2cn':'cn2w';
+    const correct = mode==='w2cn' ? w.cn : w.w;
+    const distract=pool.slice(); const opts=[];
+    for(let d=0; d<3 && distract.length; d++){
+      const r=Math.floor(Math.random()*distract.length);
+      const dw=distract.splice(r,1)[0];
+      opts.push(mode==='w2cn'? dw.cn : dw.w);
+    }
+    opts.push(correct);
+    for(let i=opts.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [opts[i],opts[j]]=[opts[j],opts[i]]; }
+    const prompt = mode==='w2cn'
+      ? `<span class="eng-q-w">${esc(w.w)}</span> <button class="spk" data-act="speak" data-text="${esc(w.w)}">🔊</button><div class="eng-q-sub">这个单词的意思是？</div>`
+      : `<div class="eng-q-cn">「${esc(w.cn)}」</div><div class="eng-q-sub">对应哪个单词？</div>`;
+    qs.push({prompt, options:opts, answer:correct, picked:null, ok:null});
+  });
+  return qs;
+}
+function renderEngGame(){
+  const g=ui.eng;
+  if(!g || g.phase==='idle'){
+    return `<div class="eng-game">
+      <div class="eng-game-head">🎯 巩固小游戏 <span class="mute" style="font-size:12px">测测今天学的词</span></div>
+      <p class="mute" style="margin:6px 0 12px">用今天的新词玩一轮小测验，答错也没关系，记住就好～</p>
+      <button class="b-pink eng-start" data-act="engStart">▶ 开始巩固</button>
     </div>`;
   }
-  return h+'</div>';
+  if(g.phase==='done'){
+    const pct=Math.round(g.score/g.total*100);
+    return `<div class="eng-game">
+      <div class="eng-game-head">🎉 本轮完成</div>
+      <div class="eng-result">得分 <b>${g.score}</b> / ${g.total} <span class="mute">(${pct}%)</span></div>
+      <div class="eng-emoji">${pct===100?'🌟 全对，太棒了！':pct>=60?'👍 不错哦，再多看几眼就熟啦':'💪 多来几轮就记住啦'}</div>
+      <button class="b-pink eng-start" data-act="engReplay">🔁 再来一轮</button>
+    </div>`;
+  }
+  const q=g.qs[g.i];
+  let opts='';
+  q.options.forEach((o,oi)=>{
+    let cls='eng-opt';
+    if(q.picked!==null){
+      if(o===q.answer) cls+=' correct';
+      else if(oi===q.picked) cls+=' wrong';
+    }
+    const dis = q.picked!==null ? 'disabled' : '';
+    opts+=`<button class="${cls}" data-act="engAnswer" data-i="${oi}" ${dis}>${esc(o)}</button>`;
+  });
+  const fb = q.picked!==null ? `<div class="eng-fb ${q.ok?'ok':'no'}">${q.ok?'✅ 答对了！':'❌ 正确答案：'+esc(q.answer)}</div>` : '';
+  const nextBtn = q.picked!==null ? `<button class="b-soft eng-next" data-act="engNext">${g.i+1>=g.total?'看结果 🎁':'下一题 →'}</button>` : '';
+  return `<div class="eng-game">
+    <div class="eng-game-head">🎯 巩固小游戏 <span class="mute" style="font-size:12px">第 ${g.i+1}/${g.total} 题</span></div>
+    <div class="eng-q">${q.prompt}</div>
+    <div class="eng-opts">${opts}</div>
+    ${fb}${nextBtn?('<div style="margin-top:12px">'+nextBtn+'</div>'):''}
+  </div>`;
+}
+function renderEnglish(){
+  const words=todayEnglishWords();
+  let h=`<div class="mod-head"><h2>🔤 英语学习</h2>
+    <div class="stats"><span>每天 4 个六级核心词</span><span class="pill">自动换新</span></div></div>
+    <p class="mute" style="margin-bottom:12px">每天自动换新词，跟着节奏慢慢积累 🌱</p>
+    <div class="eng-grid">`;
+  for(const it of words){
+    h+=`<div class="eng-card">
+      <div class="eng-w">${esc(it.w)}<button class="spk" data-act="speak" data-text="${esc(it.w)}" title="朗读单词 🔊">🔊</button></div>
+      <div class="eng-ph">${esc(it.ph)} <span class="eng-pos">${esc(it.pos)}</span></div>
+      <div class="eng-cn">${esc(it.cn)}</div>
+    </div>`;
+  }
+  h+=`</div>`;
+  h+=renderEngGame();
+  return h;
 }
 
 /* --- 2. 每日阅读 --- */
@@ -1481,6 +1605,22 @@ function handleAct(act,el){
     }
     case 'openSettings': openSettings(); break;
     case 'closeSettings': $('#modalMask').classList.remove('show'); break;
+    case 'engStart': case 'engReplay': {
+      ui.eng={phase:'playing', i:0, score:0, qs:buildEngQuestions(todayEnglishWords()), total:0};
+      ui.eng.total=ui.eng.qs.length; renderView(); break;
+    }
+    case 'engAnswer': {
+      const g=ui.eng; if(!g||g.phase!=='playing') break;
+      const q=g.qs[g.i]; if(q.picked!==null) break;
+      const oi=+el.dataset.i; q.picked=oi;
+      if(q.options[oi]===q.answer){ q.ok=true; g.score++; } else q.ok=false;
+      renderView(); break;
+    }
+    case 'engNext': {
+      const g=ui.eng; if(!g) break;
+      g.i++; if(g.i>=g.total) g.phase='done';
+      renderView(); break;
+    }
     case 'exportData': exportData(); break;
     case 'clearAll': clearAll(); break;
   }
