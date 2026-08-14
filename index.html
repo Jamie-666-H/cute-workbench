@@ -218,6 +218,9 @@
   .read-en{font-size:15px;line-height:2;color:var(--text)}
   .read-zh{font-size:14px;line-height:1.8;color:var(--text-soft);margin-top:8px}
   .read-note{margin-top:14px;background:var(--pink-soft);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--pink-deep)}
+  .read-link{margin-top:12px}
+  .read-link a{display:inline-block;font-size:13px;font-weight:700;color:var(--pink-deep);text-decoration:none;background:var(--pink-soft);padding:6px 14px;border-radius:20px}
+  .read-link a:active{opacity:.7}
   .src-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px;margin-bottom:8px;background:var(--pink-soft);color:var(--pink-deep)}
   .src-tag.ted{background:linear-gradient(135deg,#e8416f,#ff7eb3);color:#fff}
   .read-filters{display:flex;gap:8px;margin:10px 0 2px;flex-wrap:wrap}
@@ -767,6 +770,8 @@ const CET6=[
   {w:'threshold',ph:'/ˈθreʃhoʊld/',pos:'n.',cn:'门槛，临界点',ex:'We are at the threshold of a new era.',exCn:'我们处于新时代的临界点。'},
   {w:'reconcile',ph:'/ˈrekənsaɪl/',pos:'v.',cn:'调和，使和解',ex:'They reconciled their differences.',exCn:'他们调和了分歧。'}
 ];
+/* 用 CET6 词典给"在线英文"自动挑出正文里出现过的难词，出题复习 */
+const CET6_MAP={}; CET6.forEach(x=>{ if(x.w) CET6_MAP[x.w.toLowerCase()]=x.cn; });
 /* 每日阅读：内置精选（离线可读，每天轮换一篇，较长的双语短文） */
 const READINGS=[
   {title:'微小习惯的安静力量', author:'佚名', en:'We often overestimate what we can finish in one day, yet underestimate what we can build over a year. Real change rarely arrives in a single dramatic moment. Instead, it is shaped quietly by small, repeated actions. Reading ten pages each night, or walking for twenty minutes every morning, is not merely passing time—it is training the person you are becoming. The mind loves comfort, but growth lives at the edge of discomfort. Be patient, and trust the process. A year from now, you will thank the version of yourself that refused to quit on ordinary days.', zh:'我们常高估一天能完成的事，却低估一年能建成的改变。真正的转变很少来自某个戏剧性的瞬间，而是由微小、重复的行动悄悄塑造。每晚读十页书，或每天清晨走二十分钟，不只是消磨时间——而是在训练那个正在成为的自己。心智偏爱安逸，而成长生在不适的边缘。保持耐心，相信过程。一年后，你会感谢那个在平凡日子里没有放弃的自己。', note:'overestimate 高估；underestimate 低估；dramatic 戏剧性的；merely 仅仅；edge 边缘。'},
@@ -851,13 +856,16 @@ const NEWS=[
   ,{title:'吴宜泽vs吉尔伯特', url:'https://www.baidu.com/s?wd=%E5%90%B4%E5%AE%9C%E6%B3%BDvs%E5%90%89%E5%B0%94%E4%BC%AF%E7%89%B9', src:'热门'}
 ];
 function readingCard(r){
-  const tag = r.src==='TED' ? '<span class="src-tag ted">🎬 TED 演讲</span>' : '<span class="src-tag">📝 每日美文</span>';
+  const tag = r.src==='TED' ? '<span class="src-tag ted">🎬 TED 演讲</span>' : `<span class="src-tag">📝 ${esc(r.src||'每日美文')}</span>`;
+  let body='';
+  if(r.en) body+=`<div class="read-en">${esc(r.en)}<button class="spk" data-act="speak" data-text="${esc(r.en)}" data-lang="en-US">🔊 朗读英文</button></div>`;
+  if(r.zh) body+=`<div class="read-zh">${esc(r.zh)}</div>`;
+  if(r.link) body+=`<div class="read-link"><a href="${esc(r.link)}" target="_blank" rel="noopener">🔗 阅读原文 / 观看演讲</a></div>`;
   return `<div class="reader-card">
     ${tag}
     <h3>${esc(r.title)}</h3>
     ${r.author?`<div class="au">${esc(r.author)}</div>`:''}
-    <div class="read-en">${esc(r.en)}<button class="spk" data-act="speak" data-text="${esc(r.en)}">🔊 朗读英文</button></div>
-    ${r.zh?`<div class="read-zh">${esc(r.zh)}</div>`:''}
+    ${body}
     ${r.note?`<div class="read-note">💡 ${esc(r.note)}</div>`:''}
     <div id="readQuizBox">${readingQuizPanel(r)}</div>
   </div>`;
@@ -900,33 +908,48 @@ function rqOpts(correct, decoyPool, seed){
   return seededShuffle([correct, d[0], d[1], d[2]], (seed^0x9e3779b9)>>>0);
 }
 function rqSentences(r, words, seed){
-  if(!r.en) return [];
-  const sentences=r.en.split(/(?<=[.!?])\s+/);
+  const text = r.en || '';
+  if(!text) return [];
+  const sentences=text.split(/(?<=[.!?])\s+/).filter(s=>s.length<220 && s.length>24);
   const out=[];
-  for(const w of words){
+  const targets = (words && words.length) ? words : null;
+  for(const sent of sentences){
     if(out.length>=3) break;
-    const re=new RegExp('\\b'+escapeRe(w.word)+'\\b','i');
-    const sent=sentences.find(s=> re.test(s) && s.length<200);
-    if(sent) out.push({type:'blank', word:w.word, prompt:'填空：'+sent.replace(re,'______'), answer:w.word});
+    let word=null, re=null;
+    if(targets){
+      for(const w of targets){
+        const rx=new RegExp('\\b'+escapeRe(w.word)+'\\b','i');
+        if(rx.test(sent)){ word=w.word; re=rx; break; }
+      }
+    } else {
+      // 没有现成生词时，取句中较长的英文词填空，保证有题可做
+      const m=sent.match(/[A-Za-z]{5,}/g);
+      if(m){ m.sort((a,b)=>b.length-a.length); word=m[0]; re=new RegExp('\\b'+escapeRe(word)+'\\b','i'); }
+    }
+    if(word) out.push({type:'blank', word:word, prompt:'填空：'+sent.replace(re,'______'), answer:word});
   }
   return out;
 }
 function buildReadStages(r){
   const words=articleWords(r);
-  if(!words || words.length<2) return null;
-  const decoy=words.map(x=>({w:x.word,cn:x.cn})).concat(READ_DECOYS);
+  const hasWords = words && words.length>=2;
+  const decoy = hasWords ? words.map(x=>({w:x.word,cn:x.cn})).concat(READ_DECOYS) : READ_DECOYS;
   const seed=hashStr(r.title||'x');
-  const s1=[], s2=[];
-  words.slice(0,3).forEach((w,qi)=>{
-    const d1=decoy.filter(x=>x.cn!==w.cn).map(x=>x.cn);
-    s1.push({type:'w2cn', prompt:`「${esc(w.word)}」 是什么意思？`, options:rqOpts(w.cn, d1, seed+qi*7+1), answer:w.cn, picked:null, ok:null});
-    const d2=decoy.filter(x=>x.w!==w.word).map(x=>x.w);
-    s2.push({type:'cn2w', prompt:`「${esc(w.cn)}」 对应的单词是？`, options:rqOpts(w.word, d2, seed+qi*7+2), answer:w.word, picked:null, ok:null});
-  });
-  const stages=[s1,s2];
-  const s3=rqSentences(r, words, seed+99).map(q=>({...q, options:rqOpts(q.answer, decoy.filter(x=>x.w!==q.answer).map(x=>x.w), seed+200), picked:null, ok:null}));
+  const stages=[];
+  if(hasWords){
+    const s1=[], s2=[];
+    words.slice(0,3).forEach((w,qi)=>{
+      const d1=decoy.filter(x=>x.cn!==w.cn).map(x=>x.cn);
+      s1.push({type:'w2cn', prompt:`「${esc(w.word)}」 是什么意思？`, options:rqOpts(w.cn, d1, seed+qi*7+1), answer:w.cn, picked:null, ok:null});
+      const d2=decoy.filter(x=>x.w!==w.word).map(x=>x.w);
+      s2.push({type:'cn2w', prompt:`「${esc(w.cn)}」 对应的单词是？`, options:rqOpts(w.word, d2, seed+qi*7+2), answer:w.word, picked:null, ok:null});
+    });
+    stages.push(s1,s2);
+  }
+  // 第三关「句子填空」：有生词就用生词，没有就取长词，英文正文都能出
+  const s3=rqSentences(r, hasWords?words:[], seed+99).map(q=>({...q, options:rqOpts(q.answer, decoy.filter(x=>x.w!==q.answer).map(x=>x.w), seed+200), picked:null, ok:null}));
   if(s3.length) stages.push(s3);
-  return stages;
+  return stages.length?stages:null;
 }
 function readingQuizPanel(r){
   const key=r.title;
@@ -1477,7 +1500,7 @@ function renderReading(){
       <div class="read-filters">${fbtn('all','🌐 全部')}${fbtn('TED','🎬 TED')}${fbtn('essay','📝 美文')}</div>
       <button class="b-pink read-refresh" data-act="refreshRead">🔄 联网获取新文</button>
     </div>
-    <p class="mute" style="margin:10px 0 12px">每天自动推荐一篇双语长文，可上下翻看；点上方「联网获取新文」可拉取离线库之外的新文章 🌍</p>
+    <p class="mute" style="margin:10px 0 12px">点上方「🔄 联网获取新文」会从真实网站（每日一文 / 古诗文 / TED / 一言）现抓一篇，每次都不同、互不重复 🌍（断网则回退离线精选）</p>
     <div class="reader" id="reader">${readingCard(r)}</div>
     <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center">
       <button class="b-soft" data-act="readPrev">📜 上一篇</button>
@@ -1494,39 +1517,53 @@ function rotateReading(dir){
   readIdx=pool[pos];
   renderView();
 }
+function normalizeOnlineReading(item){
+  // 把后端现抓的文章规范化成本地卡片/测验需要的形状
+  const r = {
+    src: item.src||'在线', lang: item.lang||'zh',
+    title: item.title||'无题', author: item.author||'',
+    en: item.en||'', zh: item.zh||'', link: item.link||'',
+    note: '', words: [], id: item.id||''
+  };
+  if(r.en){
+    // 用 CET6 词典挑正文里出现过的难词，自动出"看词选义/看义选词"
+    const seen=new Set(), toks=(r.en.toLowerCase().match(/[a-z]{4,}/g)||[]);
+    for(const t of toks){
+      const cn=CET6_MAP[t];
+      if(cn && !seen.has(t)){ seen.add(t); r.words.push({word:t, cn:cn}); if(r.words.length>=4) break; }
+    }
+  }
+  return r;
+}
 async function fetchReading(manual){
   const statusEl=document.getElementById('readStatus');
-  const isTED = ui.readFilter==='TED';
-  const url = 'readings_online.json?t='+Date.now();
+  const kind = ui.readFilter==='TED' ? 'ted' : (ui.readFilter==='essay' ? 'essay' : 'all');
+  const url = BACKEND + '/api/reading?type=' + encodeURIComponent(kind) + '&t=' + Date.now();
   if(statusEl) statusEl.textContent='获取中…';
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),8000);
+  const timer=setTimeout(()=>controller.abort(),9000);
   try{
-    // 同源加载「在线文库」：离线库之外的新文章（国内永不超时）
+    // 从后端实时抓取真实网站的文章（每日一文 / 古诗文 / TED / 一言），每次不同、互不重复
     const res=await fetch(url,{cache:'no-store',signal:controller.signal});
     clearTimeout(timer);
     if(!res.ok) throw new Error('bad');
     const data=await res.json();
-    let pool=(data&&data.items)||[];
-    if(isTED) pool=pool.filter(r=>r.src==='TED');
-    else if(ui.readFilter==='essay') pool=pool.filter(r=>!r.src);
-    if(!pool.length) throw new Error('empty');
-    let cand=pool.filter(r=>r.title!==ui.lastOnlineTitle);
-    if(!cand.length) cand=pool;
-    const r=cand[Math.floor(Math.random()*cand.length)];
-    if(!r.src) r.src = isTED ? 'TED' : 'READ';
+    if(!data || !data.ok) throw new Error('empty');
+    const r=normalizeOnlineReading(data);
     ui.curRead=r; ui.lastOnlineTitle=r.title; ui.readOnline=true;
     renderView();
     toast('已获取在线新文 ✨');
   }catch(e){
     clearTimeout(timer);
-    // 离线兜底：回退到内置离线长文库
+    // 离线兜底：后端不可达时回退到内置离线长文库
     ui.readOnline=false;
     if(readIdx<0) readIdx=dayOfYear()%READINGS.length;
+    const pool=readingIndices();
+    if(!pool.includes(readIdx)) readIdx=pool[0];
     ui.curRead=READINGS[readIdx];
     if(statusEl) statusEl.textContent='离线精选';
     renderView();
-    toast('在线文库暂时连不上～已显示离线长文 📖');
+    toast('在线源暂时连不上～已显示离线长文 📖');
   }
 }
 
@@ -1791,7 +1828,7 @@ function handleAct(act,el){
   const id=el.dataset.id, i=el.dataset.i, m=el.dataset.m, v=el.dataset.val;
   switch(act){
     case 'checkin': doCheckin(); break;
-    case 'speak': speak(el.dataset.text); break;
+    case 'speak': speak(el.dataset.text, el.dataset.lang||'en-US'); break;
     case 'toggleShow': ui.showAll[id]=!ui.showAll[id]; renderView(); break;
     case 'clearToday': clearToday(id); break;
     case 'delTxn': removeFrom(DB.finance.txns,i); save(); renderView(); break;
