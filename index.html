@@ -264,12 +264,15 @@
   @media(min-width:640px){ .frame-feed{column-width:172px;column-gap:16px} }
   .frame{break-inside:avoid;margin:0 0 16px;background:var(--bg,#fff);padding:8px 8px 6px;box-shadow:0 5px 16px rgba(255,143,177,.16);position:relative;transition:transform .18s;will-change:transform;transform:rotate(var(--rot,0deg)) translateX(var(--dx,0));margin-top:var(--mt,0);border-radius:var(--br,14px)}
   .frame:hover{transform:rotate(var(--rot,0deg)) scale(1.04);z-index:3}
-  .frame-photo{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#ffe9f1,#eaf1ff);cursor:pointer}
+  .frame-photo{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#ffe9f1,#eaf1ff);cursor:default}
+  .frame-photo.viewable{cursor:pointer}
   .frame-photo img{width:100%;height:100%;object-fit:cover;display:block}
   .frame-photo .ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#e79bb4;font-size:12px;gap:5px}
   .frame-photo .ph .cam{font-size:30px}
   .frame-deco{position:absolute;top:-10px;left:50%;transform:translateX(-50%) rotate(-7deg);font-size:15px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.08));pointer-events:none}
   .frame-x{position:absolute;top:5px;right:5px;width:22px;height:22px;border:none;border-radius:50%;background:rgba(255,255,255,.85);color:#e06b8a;font-size:14px;line-height:1;cursor:pointer}
+  .frame-swap{position:absolute;bottom:5px;right:5px;width:24px;height:24px;border:none;border-radius:50%;background:rgba(255,255,255,.9);font-size:13px;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  .frame-swap:hover{background:#fff}
   .frame-cap{width:100%;border:none;background:transparent;resize:none;margin-top:8px;font:inherit;font-size:12.5px;line-height:1.5;color:var(--text);min-height:32px;box-sizing:border-box;padding:2px}
   .frame-cap:focus{outline:none}
   .frame-cap::placeholder{color:#d9a7b8}
@@ -340,6 +343,13 @@
   .b-soft{background:var(--pink-soft);color:var(--pink-deep)}
   .b-red{background:#ffe0e0;color:#d9534f}
   .modal .close{float:right;border:none;background:none;font-size:22px;color:var(--text-soft);cursor:pointer}
+  /* 心情相框 · 查看大图 */
+  .photo-viewer{position:fixed;inset:0;background:rgba(40,25,35,.85);display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;z-index:60}
+  .photo-viewer.show{display:flex}
+  .photo-viewer img{max-width:92vw;max-height:72vh;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.45);background:#fff;object-fit:contain}
+  .photo-viewer .pv-cap{color:#fff;margin-top:14px;font-size:15px;max-width:92vw;text-align:center;opacity:.92;line-height:1.5;word-break:break-word}
+  .photo-viewer .pv-close{position:absolute;top:18px;right:20px;width:42px;height:42px;border:none;border-radius:50%;background:rgba(255,255,255,.92);font-size:24px;font-weight:700;cursor:pointer;color:#b8527a;line-height:1}
+  .photo-viewer .pv-hint{position:absolute;bottom:18px;color:#fff;opacity:.6;font-size:12px}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--pink-deep);color:#fff;padding:11px 22px;border-radius:20px;font-size:14px;font-weight:700;opacity:0;transition:opacity .3s;z-index:99;pointer-events:none}
   .toast.show{opacity:1}
   ::-webkit-scrollbar{width:8px}
@@ -487,6 +497,13 @@
   <!-- 设置弹窗 -->
   <div class="modal-mask" id="modalMask">
     <div class="modal" id="modal"></div>
+  </div>
+  <!-- 心情相框 · 查看大图 -->
+  <div class="photo-viewer" id="photoViewer">
+    <button class="pv-close" data-act="pvClose" title="关闭">×</button>
+    <img id="pvImg" alt="大图" src="">
+    <div class="pv-cap" id="pvCap"></div>
+    <div class="pv-hint">点击空白处关闭 · 双指可缩放</div>
   </div>
   <div class="toast" id="toast"></div>
   <div class="cal-mask" id="calMask"><div class="cal-pop" id="calPop"></div></div>
@@ -1732,15 +1749,26 @@ function frameCard(p){
   const {rot,dx,mt,br,bg,d}=plogHashStyle(p.id);
   const sel = ui.selMode && ui.selIds.includes(p.id);
   const hit = ui.selMode ? `<div class="frame-selhit" data-act="plogToggleSel" data-id="${p.id}"></div>` : '';
+  const photo = p.img
+    ? `<img src="${esc(p.img)}" alt="plog" loading="lazy">
+       <button class="frame-swap" data-act="plogPickImg" data-id="${p.id}" title="换图">🔄</button>`
+    : `<div class="ph"><span class="cam">📷</span><span>点我拍照</span></div>`;
   return `<div class="frame${sel?' sel':''}" data-id="${p.id}" style="--rot:${rot}deg;--dx:${dx}px;--mt:${mt}px;--br:${br};--bg:${bg}">
     <span class="frame-deco">${d}</span>
-    <div class="frame-photo" data-act="plogPickImg" data-id="${p.id}">
-      ${p.img?`<img src="${esc(p.img)}" alt="plog" loading="lazy">`:`<div class="ph"><span class="cam">📷</span><span>点我拍照</span></div>`}
+    <div class="frame-photo${p.img?' viewable':''}" ${p.img?'data-act="plogView"':''} data-id="${p.id}">
+      ${photo}
       <button class="frame-x" data-act="plogDel" data-id="${p.id}" title="删除">×</button>
     </div>
     <textarea class="frame-cap" data-act="plogCap" data-id="${p.id}" placeholder="写点什么…">${esc(p.text)}</textarea>
     ${hit}
   </div>`;
+}
+function openPhotoViewer(p){
+  const v=$('#photoViewer'); if(!v) return;
+  const img=$('#pvImg'), cap=$('#pvCap');
+  if(img){ img.src=p.img||''; }
+  if(cap){ cap.textContent=p.text||''; }
+  v.classList.add('show');
 }
 function renderCalendar(){
   const now=new Date();
@@ -1882,6 +1910,12 @@ function handleAct(act,el){
       if(ui.selMode){ toggleSel(id); break; }
       ui.plogTargetId=id; const fi=$('#plogFile'); if(fi) fi.click(); break;
     }
+    case 'plogView': {
+      if(ui.selMode) break;
+      const x=DB.mood.plogs.find(p=>p.id===id); if(!x||!x.img) break;
+      openPhotoViewer(x); break;
+    }
+    case 'pvClose': $('#photoViewer').classList.remove('show'); break;
     case 'plogPrevDay': ui.viewDate=shiftDate(ui.viewDate,-1); ui.selMode=false; ui.selIds=[]; renderView(); break;
     case 'plogNextDay': ui.viewDate=shiftDate(ui.viewDate,1); ui.selMode=false; ui.selIds=[]; renderView(); break;
     case 'plogToday': ui.viewDate=todayStr(); ui.selMode=false; ui.selIds=[]; renderView(); break;
@@ -2095,6 +2129,14 @@ function bindGlobal(){
     if(e.target===$('#calMask')){ cal.classList.remove('show'); return; }
     const el=e.target.closest('[data-act]'); if(!el) return; handleAct(el.dataset.act,el);
   });
+  // 心情相框 · 查看大图弹层：点空白处关闭
+  const pv=$('#photoViewer');
+  if(pv){
+    pv.addEventListener('click',e=>{
+      if(e.target===$('#photoViewer')){ $('#photoViewer').classList.remove('show'); return; }
+      const el=e.target.closest('[data-act]'); if(!el) return; handleAct(el.dataset.act,el);
+    });
+  }
 }
 
 /* ===================== 启动 ===================== */
